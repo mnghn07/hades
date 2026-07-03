@@ -7,10 +7,9 @@ import typer
 from rich.console import Console
 from rich.live import Live
 from rich.table import Table
-from rich.text import Text
 
 from hades.db import get_db
-from hades.commands.attention import WAIT_THRESHOLD_MINUTES
+from hades.commands.attention import WAIT_THRESHOLD_MINUTES, RECENCY_HOURS
 
 console = Console()
 
@@ -20,7 +19,10 @@ REFRESH_SECONDS = 30
 def cmd_watch(
     notify: bool = typer.Option(True, "--notify/--no-notify", help="Fire macOS notifications for newly-waiting sessions"),
 ):
-    notified: set[str] = set()
+    # Pre-seed notified with sessions already past the threshold so startup
+    # doesn't fire a notification storm for everything already waiting.
+    _, already_waiting = _build_table(set())
+    notified: set[str] = {s["id"] for s in already_waiting}
 
     console.print("[bold]hades watch[/bold] · refreshing every 30s · [dim]Ctrl+C to exit[/dim]\n")
 
@@ -54,8 +56,10 @@ def _build_table(notified: set[str]) -> tuple[Table, list[dict]]:
     if "sessions" not in db.table_names():
         return table, []
 
+    recency_cutoff = (now - timedelta(hours=RECENCY_HOURS)).isoformat()
     sessions = list(db.execute(
-        "SELECT * FROM sessions WHERE status IN ('running', 'idle') ORDER BY last_active_at ASC"
+        "SELECT * FROM sessions WHERE status IN ('running', 'idle') AND last_active_at >= ? ORDER BY last_active_at ASC",
+        [recency_cutoff]
     ).fetchall())
     col_names = [d[0] for d in db.execute("SELECT * FROM sessions LIMIT 0").description]
 
