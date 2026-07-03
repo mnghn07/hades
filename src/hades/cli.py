@@ -19,7 +19,10 @@ def _version_callback(value: bool) -> None:
 def main(
     version: Optional[bool] = typer.Option(None, "--version", "-v", callback=_version_callback, is_eager=True, help="Show version and exit"),
 ):
-    pass
+    from hades.db import get_db
+    from hades.indexer import refresh_index
+    db = get_db()
+    refresh_index(db)
 
 
 @app.command("list", help="List sessions across all tools.")

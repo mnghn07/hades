@@ -26,12 +26,22 @@ def _ensure_schema(db: sqlite_utils.Database) -> None:
             "raw_path": str,
             "title": str,
             "file_mtime": float,
-        }, pk="id")
-
-    if "sessions_fts" not in db.table_names():
-        db["sessions_fts"].create({
-            "session_id": str,
             "human_messages": str,
             "assistant_messages": str,
-        }, pk="session_id")
-        db.execute("CREATE VIRTUAL TABLE IF NOT EXISTS sessions_fts_idx USING fts5(session_id UNINDEXED, human_messages, assistant_messages, content=sessions_fts, content_rowid=rowid)")
+        }, pk="id")
+        db["sessions"].create_index(["raw_path"], unique=True)
+    else:
+        # Migrate: add columns added after initial schema
+        existing_cols = {col.name for col in db["sessions"].columns}
+        for col, col_type in [("human_messages", str), ("assistant_messages", str), ("file_mtime", float)]:
+            if col not in existing_cols:
+                db["sessions"].add_column(col, col_type)
+
+    if "sessions_fts" not in db.table_names():
+        db.execute("""
+            CREATE VIRTUAL TABLE sessions_fts USING fts5(
+                id UNINDEXED,
+                human_messages,
+                assistant_messages
+            )
+        """)
