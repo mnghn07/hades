@@ -10,6 +10,7 @@ from hades.db import get_db
 console = Console()
 
 WAIT_THRESHOLD_MINUTES = 3
+RECENCY_HOURS = 24
 
 
 def cmd_attention():
@@ -19,10 +20,11 @@ def cmd_attention():
         return
 
     now = datetime.now(timezone.utc)
-    threshold = now - timedelta(minutes=WAIT_THRESHOLD_MINUTES)
+    recency_cutoff = (now - timedelta(hours=RECENCY_HOURS)).isoformat()
 
     sessions = list(db.execute(
-        "SELECT * FROM sessions WHERE status IN ('running', 'idle') ORDER BY last_active_at ASC"
+        "SELECT * FROM sessions WHERE status IN ('running', 'idle') AND last_active_at >= ? ORDER BY last_active_at ASC",
+        [recency_cutoff]
     ).fetchall())
     col_names = [d[0] for d in db.execute("SELECT * FROM sessions LIMIT 0").description]
 

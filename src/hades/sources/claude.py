@@ -111,9 +111,20 @@ def _parse_timestamps(messages: list[dict]) -> list[datetime]:
 def _extract_title(user_msgs: list[dict]) -> str | None:
     for m in user_msgs:
         text = _msg_text(m.get("message", {}))
-        if text:
+        if text and _is_real_user_text(text):
             return text[:80]
     return None
+
+
+def _is_real_user_text(text: str) -> bool:
+    """Reject system-injected content that looks like XML tags or hook metadata."""
+    stripped = text.strip()
+    if stripped.startswith("<") or stripped.startswith("Base directory"):
+        return False
+    # Skip tool result content injected by the harness
+    if stripped.startswith("[{") or stripped.startswith("Output too large"):
+        return False
+    return len(stripped) > 3
 
 
 def _decode_dir(encoded: str) -> str:
