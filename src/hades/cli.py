@@ -21,8 +21,10 @@ def main(
 ):
     from hades.db import get_db
     from hades.indexer import refresh_index
+    from hades.process_checker import update_statuses
     db = get_db()
     refresh_index(db)
+    update_statuses(db)
 
 
 @app.command("list", help="List sessions across all tools.")

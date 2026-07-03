@@ -9,6 +9,8 @@ DB_PATH = Path(user_data_dir("hades")) / "index.db"
 def get_db() -> sqlite_utils.Database:
     DB_PATH.parent.mkdir(parents=True, exist_ok=True)
     db = sqlite_utils.Database(DB_PATH)
+    db.conn.execute("PRAGMA journal_mode=WAL")
+    db.conn.execute("PRAGMA busy_timeout=5000")
     _ensure_schema(db)
     return db
 
