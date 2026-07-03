@@ -17,7 +17,12 @@ class CoworkSource(BaseSource):
     @classmethod
     def list_files(cls) -> list[Path]:
         root = cls.discover_root()
-        return list(root.rglob("*.json")) if root else []
+        if root is None:
+            return []
+        return [
+            p for p in root.rglob("*.json")
+            if "node_modules" not in p.parts
+        ]
 
     @classmethod
     def parse_file(cls, path: Path) -> Session | None:
