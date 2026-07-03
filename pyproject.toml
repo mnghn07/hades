@@ -1,0 +1,39 @@
+[project]
+name = "hades-cli"
+version = "0.1.0"
+description = "No AI session escapes. A local CLI for viewing, searching, and managing AI coding sessions across Claude Code, Codex, Gemini, and Cowork."
+readme = "README.md"
+authors = [
+    { name = "mnghn07", email = "ngh.nhatminh0712@gmail.com" }
+]
+requires-python = ">=3.11"
+dependencies = [
+    "typer>=0.15",
+    "rich>=13",
+    "ijson>=3",
+    "psutil>=6",
+    "platformdirs>=4",
+    "pendulum>=3",
+    "sqlite-utils>=3",
+]
+
+[project.urls]
+Homepage = "https://github.com/mnghn07/hades"
+Repository = "https://github.com/mnghn07/hades"
+
+[project.scripts]
+hades = "hades.cli:app"
+
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[tool.hatch.build.targets.wheel]
+packages = ["src/hades"]
+
+[dependency-groups]
+dev = [
+    "pytest>=8",
+    "pytest-mock>=3",
+    "typer>=0.15",
+]
