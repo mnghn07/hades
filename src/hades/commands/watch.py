@@ -8,6 +8,7 @@ from rich.console import Console
 from rich.live import Live
 from rich.table import Table
 
+from hades.classify import classify_project
 from hades.db import get_db
 from hades.commands.attention import WAIT_THRESHOLD_MINUTES, RECENCY_HOURS
 
@@ -72,6 +73,10 @@ def _build_table(notified: set[str]) -> tuple[Table, list[dict]]:
     newly_waiting = []
     for row in sessions:
         s = dict(zip(col_names, row))
+        _, session_type = classify_project(s["project_path"])
+        if session_type != "human":
+            continue
+
         last_active = datetime.fromisoformat(s["last_active_at"])
         if last_active.tzinfo is None:
             last_active = last_active.replace(tzinfo=timezone.utc)

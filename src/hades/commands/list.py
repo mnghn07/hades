@@ -1,31 +1,58 @@
-import re
 from datetime import datetime, timezone, timedelta
-from typing import Optional
 
 import typer
 from rich.console import Console
 from rich.table import Table
 import pendulum
 
+from hades.classify import classify_project
 from hades.db import get_db
 
 console = Console()
 
-SINCE_UNITS = {"m": "minutes", "h": "hours", "d": "days", "w": "weeks"}
+DEFAULT_RECENCY_DAYS = 3
+STATUS_RANK = {"running": 2, "idle": 1, "ended": 0}
 
 
-def _parse_since(since: str) -> datetime:
-    match = re.fullmatch(r"(\d+)([mhdw])", since.strip().lower())
-    if not match:
-        raise typer.BadParameter("Expected a duration like 2d, 1w, or 3h")
-    amount, unit = match.groups()
-    return datetime.now(timezone.utc) - timedelta(**{SINCE_UNITS[unit]: int(amount)})
+def _last_active(session: dict) -> datetime:
+    dt = datetime.fromisoformat(session["last_active_at"])
+    return dt if dt.tzinfo else dt.replace(tzinfo=timezone.utc)
+
+
+def _group_agent_sessions(sessions: list[dict]) -> list[dict]:
+    """Collapse background/observer sessions into one summary row per (tool, project)."""
+    groups: dict[tuple[str, str], dict] = {}
+    for s in sessions:
+        key = (s["tool"], s["_display_project"])
+        group = groups.get(key)
+        if group is None:
+            groups[key] = {
+                "tool": s["tool"],
+                "_display_project": s["_display_project"],
+                "_session_type": "agent",
+                "title": None,
+                "last_active_at": s["last_active_at"],
+                "message_count": s["message_count"],
+                "status": s["status"],
+                "_count": 1,
+            }
+            continue
+        group["message_count"] += s["message_count"]
+        group["_count"] += 1
+        if _last_active(s) > _last_active(group):
+            group["last_active_at"] = s["last_active_at"]
+        if STATUS_RANK[s["status"]] > STATUS_RANK[group["status"]]:
+            group["status"] = s["status"]
+    return list(groups.values())
 
 
 def cmd_list(
-    tool: Optional[str] = typer.Option(None, "--tool", "-t", help="Filter by tool: claude, codex, gemini, cowork"),
+    tool: str | None = typer.Option(None, "--tool", "-t", help="Filter by tool: claude, codex, gemini, cowork"),
     active: bool = typer.Option(False, "--active", help="Show only running/idle sessions"),
-    since: Optional[str] = typer.Option(None, "--since", help="Show sessions active since (e.g. 2d, 1w)"),
+    day: int = typer.Option(0, "--day", help="Show sessions active within the last N days"),
+    hour: int = typer.Option(0, "--hour", help="Show sessions active within the last N hours"),
+    minute: int = typer.Option(0, "--min", help="Show sessions active within the last N minutes"),
+    show_all: bool = typer.Option(False, "--all", help="Show every session, ignoring recency"),
 ):
     db = get_db()
     if "sessions" not in db.table_names():
@@ -42,22 +69,33 @@ def cmd_list(
         sessions = [s for s in sessions if s["tool"] == tool]
     if active:
         sessions = [s for s in sessions if s["status"] in ("running", "idle")]
-    if since:
-        cutoff = _parse_since(since)
-
-        def _last_active(s: dict) -> datetime:
-            dt = datetime.fromisoformat(s["last_active_at"])
-            return dt if dt.tzinfo else dt.replace(tzinfo=timezone.utc)
-
+    if not show_all:
+        if day or hour or minute:
+            recency = timedelta(days=day, hours=hour, minutes=minute)
+        else:
+            recency = timedelta(days=DEFAULT_RECENCY_DAYS)
+        cutoff = datetime.now(timezone.utc) - recency
         sessions = [s for s in sessions if _last_active(s) >= cutoff]
 
     if not sessions:
         console.print("[dim]No sessions found.[/dim]")
         return
 
+    human_sessions = []
+    agent_sessions = []
+    for s in sessions:
+        display_project, session_type = classify_project(s["project_path"])
+        s["_display_project"] = display_project
+        s["_session_type"] = session_type
+        (human_sessions if session_type == "human" else agent_sessions).append(s)
+
+    rows = human_sessions + _group_agent_sessions(agent_sessions)
+    rows.sort(key=_last_active, reverse=True)
+
     table = Table(show_header=True, header_style="bold", box=None, pad_edge=False, expand=True)
     table.add_column("TOOL", style="cyan", width=10)
     table.add_column("PROJECT", style="white", max_width=30)
+    table.add_column("TYPE", style="magenta", width=8)
     table.add_column("TITLE", style="dim", max_width=40)
     table.add_column("LAST ACTIVE", style="yellow", width=14)
     table.add_column("MSGS", justify="right", width=6)
@@ -69,11 +107,16 @@ def cmd_list(
         "ended": "[red]✕ ended[/red]",
     }
 
-    for s in sessions:
+    for s in rows:
         last_active = pendulum.parse(s["last_active_at"]).diff_for_humans()
-        project = s["project_path"].split("/")[-1] or s["project_path"]
-        title = (s["title"] or "")[:38]
+        if s["_session_type"] == "agent":
+            title = f"{s['_count']} session{'s' if s['_count'] != 1 else ''}"
+        else:
+            title = (s["title"] or "")[:38]
         status = status_icons.get(s["status"], s["status"])
-        table.add_row(s["tool"], project, title, last_active, str(s["message_count"]), status)
+        table.add_row(
+            s["tool"], s["_display_project"], s["_session_type"], title,
+            last_active, str(s["message_count"]), status,
+        )
 
     console.print(table)

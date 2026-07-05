@@ -3,6 +3,7 @@ from datetime import datetime, timezone, timedelta
 from rich.console import Console
 from rich.table import Table
 
+from hades.classify import classify_project
 from hades.db import get_db
 
 console = Console()
@@ -34,6 +35,10 @@ def cmd_attention():
     flagged = []
     for row in sessions:
         s = dict(zip(col_names, row))
+        _, session_type = classify_project(s["project_path"])
+        if session_type != "human":
+            continue
+
         last_active = datetime.fromisoformat(s["last_active_at"])
         if last_active.tzinfo is None:
             last_active = last_active.replace(tzinfo=timezone.utc)

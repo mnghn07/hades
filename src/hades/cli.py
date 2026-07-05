@@ -33,10 +33,13 @@ def main(
 def list_cmd(
     tool: Optional[str] = typer.Option(None, "--tool", "-t", help="Filter by tool: claude, codex, gemini, cowork"),
     active: bool = typer.Option(False, "--active", help="Show only running/idle sessions"),
-    since: Optional[str] = typer.Option(None, "--since", help="Show sessions active since (e.g. 2d, 1w)"),
+    day: int = typer.Option(0, "--day", help="Show sessions active within the last N days"),
+    hour: int = typer.Option(0, "--hour", help="Show sessions active within the last N hours"),
+    minute: int = typer.Option(0, "--min", help="Show sessions active within the last N minutes"),
+    show_all: bool = typer.Option(False, "--all", help="Show every session, ignoring recency"),
 ):
     from hades.commands.list import cmd_list
-    cmd_list(tool=tool, active=active, since=since)
+    cmd_list(tool=tool, active=active, day=day, hour=hour, minute=minute, show_all=show_all)
 
 
 @app.command("show", help="Pretty-print a session transcript.")

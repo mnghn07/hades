@@ -22,9 +22,10 @@ pip install hades-cli        # or plain pip
 ## Commands
 
 ```bash
-hades list                                    # all sessions, all tools
+hades list                                    # sessions from the last 3 days (default)
 hades list --tool claude --active             # filter by tool or status
-hades list --since 2d                         # filter by recency (e.g. 2d, 1w, 3h)
+hades list --day 1 --hour 12                  # sessions active within the last 1d 12h
+hades list --all                              # every session ever indexed
 hades show <session-id>                       # pretty-print a transcript
 hades show <session-id> --full                # expand tool calls too
 hades attention                               # what's been waiting on you
@@ -36,14 +37,15 @@ hades watch --no-notify                       # live view only
 
 On every command, `hades` scans your local session files, indexes them into a SQLite database, and checks running processes to show live status. Only changed files are re-parsed, so runs stay fast. Everything stays on your machine — nothing is sent anywhere.
 
-**`hades list`** shows all sessions across tools, sorted by most recently active:
+**`hades list`** shows all sessions across tools, sorted by most recently active. Background sessions spawned by other tooling (observers, hooks, ...) are grouped into a single summary row per tool, instead of flooding the table:
 
 ```
-TOOL      PROJECT              LAST ACTIVE    MSGS  STATUS
-claude    hades                2m ago          47   ● running
-claude    dotfiles             3h ago          12   ○ idle
-gemini    api-server           1d ago           8   ○ idle
-codex     ml-pipeline          3d ago          31   ✕ ended
+TOOL      PROJECT              TYPE      LAST ACTIVE    MSGS  STATUS
+claude    hades                human     2m ago          47   ● running
+claude    claude-mem           agent     2m ago         512   ● running
+claude    dotfiles             human     3h ago          12   ○ idle
+gemini    api-server           human     1d ago           8   ○ idle
+codex     ml-pipeline          human     3d ago          31   ✕ ended
 ```
 
 **`hades attention`** lists sessions that have been waiting on you for 3+ minutes, longest wait first.

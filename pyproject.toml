@@ -53,6 +53,8 @@ disable = [
     "broad-exception-caught",
     "too-many-locals",
     "too-many-instance-attributes",
+    "too-many-arguments",
+    "too-many-positional-arguments",
     "redefined-outer-name",
 ]
 
