@@ -19,7 +19,7 @@ uv tool install hades-cli    # or with uv
 pip install hades-cli        # or plain pip
 ```
 
-## Commands
+## Usage
 
 ```bash
 hades list                                    # sessions from the last 3 days (default)
@@ -29,6 +29,14 @@ hades list --all                              # every session ever indexed
 hades show <session-id>                       # pretty-print a transcript
 hades show <session-id> --full                # expand tool calls too
 hades attention                               # what's been waiting on you
+hades stats                                   # summary + per-tool breakdown
+hades stats --day 1                           # scoped to the last 24h
+hades search "some query"                     # full-text search across transcripts
+hades search "some query" --tool claude -n 5  # filter by tool, cap results
+hades export <session-id>                     # dump transcript as JSON
+hades export <session-id> --format markdown -o out.md
+hades archive <session-id>                    # move transcript to the archive, hide it from list/search
+hades purge <session-id>                      # permanently delete a transcript (asks to confirm)
 hades watch                                   # live view + macOS notifications
 hades watch --no-notify                       # live view only
 ```
@@ -36,6 +44,8 @@ hades watch --no-notify                       # live view only
 ## How it works
 
 On every command, `hades` scans your local session files, indexes them into a SQLite database, and checks running processes to show live status. Only changed files are re-parsed, so runs stay fast. Everything stays on your machine — nothing is sent anywhere.
+
+## Commands
 
 **`hades list`** shows all sessions across tools, sorted by most recently active. Background sessions spawned by other tooling (observers, hooks, ...) are grouped into a single summary row per tool, instead of flooding the table:
 
@@ -48,7 +58,19 @@ gemini    api-server           human     1d ago           8   ○ idle
 codex     ml-pipeline          human     3d ago          31   ✕ ended
 ```
 
+**`hades show`** pretty-prints a single transcript, tool calls collapsed by default (`--full` to expand).
+
 **`hades attention`** lists sessions that have been waiting on you for 3+ minutes, longest wait first.
+
+**`hades stats`** summarizes total sessions/messages, a per-tool breakdown, and how many sessions are currently waiting on you.
+
+**`hades search`** does a full-text search across every transcript's human and assistant messages, with a highlighted snippet for each match.
+
+**`hades export`** dumps a session's transcript to a JSON or Markdown file, for sharing or archiving outside `hades`.
+
+**`hades archive`** relocates a session's raw file into `hades`'s own archive directory and hides it from `list`/`search` by default (pass `--show-archived` to see it again). The file isn't deleted — `hades purge` is the destructive one.
+
+**`hades purge`** permanently deletes a session's transcript file and its index entry. Prompts for confirmation unless you pass `--yes`.
 
 **`hades watch`** keeps a live view open and fires a macOS notification when a session starts waiting.
 
