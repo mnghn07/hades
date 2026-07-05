@@ -3,6 +3,7 @@ from datetime import datetime, timezone, timedelta
 import typer
 from rich import box
 from rich.console import Console
+from rich.markup import escape
 from rich.table import Table
 import pendulum
 
@@ -120,7 +121,7 @@ def cmd_list(
             title = (s["title"] or "")[:38]
         status = status_icons.get(s["status"], s["status"])
         table.add_row(
-            s["tool"], s["_display_project"], s["_session_type"], title,
+            escape(s["tool"]), escape(s["_display_project"]), s["_session_type"], escape(title),
             last_active, str(s["message_count"]), status,
         )
 

@@ -1,10 +1,9 @@
 from datetime import datetime, timezone
 from pathlib import Path
 
-import ijson
-
 from hades.models import Session
 from .base import BaseSource
+from .common import parse_timestamps, read_jsonl_dicts
 
 
 class CodexSource(BaseSource):
@@ -19,15 +18,16 @@ class CodexSource(BaseSource):
 
     @classmethod
     def parse_file(cls, path: Path) -> Session | None:
-        messages = _read_messages(path)
+        messages = read_jsonl_dicts(path)
         if not messages:
             return None
 
-        timestamps = _parse_timestamps(messages)
+        timestamps = parse_timestamps(messages)
         started_at = min(timestamps) if timestamps else datetime.now(timezone.utc)
         last_active_at = max(timestamps) if timestamps else started_at
 
-        human_msgs = [m for m in messages if m.get("role") == "user"]
+        turns = [m for m in messages if m.get("role") in ("user", "assistant")]
+        human_msgs = [m for m in turns if m.get("role") == "user"]
         title = None
         if human_msgs:
             content = human_msgs[0].get("content", "")
@@ -37,10 +37,10 @@ class CodexSource(BaseSource):
         return Session(
             id=f"codex:{path.stem}",
             tool="codex",
-            project_path=str(path.parent),
+            project_path=_extract_cwd(messages) or str(path.parent),
             started_at=started_at,
             last_active_at=last_active_at,
-            message_count=len(messages),
+            message_count=len(turns),
             status="idle",
             raw_path=path,
             title=title,
@@ -48,27 +48,19 @@ class CodexSource(BaseSource):
 
     @classmethod
     def extract_messages(cls, path: Path) -> tuple[str, str]:
-        messages = _read_messages(path)
+        messages = read_jsonl_dicts(path)
         human = " ".join(str(m.get("content", "")) for m in messages if m.get("role") == "user")
         assistant = " ".join(str(m.get("content", "")) for m in messages if m.get("role") == "assistant")
         return human, assistant
 
 
-def _read_messages(path: Path) -> list[dict]:
-    try:
-        with open(path, "rb") as f:
-            return list(ijson.items(f, "", multiple_values=True))
-    except Exception:
-        return []
-
-
-def _parse_timestamps(messages: list[dict]) -> list[datetime]:
-    timestamps = []
+def _extract_cwd(messages: list[dict]) -> str | None:
+    """Codex rollout files carry the working directory in the session_meta
+    record (payload.cwd) or as a top-level cwd on some records."""
     for m in messages:
-        ts = m.get("timestamp")
-        if ts:
-            try:
-                timestamps.append(datetime.fromisoformat(ts.replace("Z", "+00:00")))
-            except Exception:
-                pass
-    return timestamps
+        payload = m.get("payload")
+        if isinstance(payload, dict) and payload.get("cwd"):
+            return payload["cwd"]
+        if m.get("cwd"):
+            return m["cwd"]
+    return None

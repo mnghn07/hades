@@ -1,10 +1,9 @@
 from datetime import datetime, timezone
 from pathlib import Path
 
-import ijson
-
 from hades.models import Session
 from .base import BaseSource
+from .common import parse_timestamps, read_jsonl_dicts
 
 
 class ClaudeSource(BaseSource):
@@ -22,22 +21,24 @@ class ClaudeSource(BaseSource):
 
     @classmethod
     def parse_file(cls, path: Path) -> Session | None:
-        messages = _read_messages(path)
+        messages = read_jsonl_dicts(path)
         if not messages:
             return None
 
         cwd = _extract_cwd(messages)
         user_msgs = [m for m in messages if m.get("type") == "user" and "message" in m]
         assistant_msgs = [m for m in messages if _is_assistant(m)]
-        timestamps = _parse_timestamps(messages)
+        timestamps = parse_timestamps(messages)
 
         started_at = min(timestamps) if timestamps else datetime.now(timezone.utc)
         last_active_at = max(timestamps) if timestamps else started_at
         title = _extract_title(user_msgs)
-        session_id = _extract_session_id(messages, path)
 
         return Session(
-            id=f"claude:{session_id}",
+            # Keyed by file stem, not the inner sessionId: resumed sessions
+            # reuse the original sessionId across multiple files, and a shared
+            # id would make the files shadow each other in the index.
+            id=f"claude:{path.stem}",
             tool="claude",
             project_path=cwd or _decode_dir(path.parent.name),
             started_at=started_at,
@@ -50,7 +51,7 @@ class ClaudeSource(BaseSource):
 
     @classmethod
     def extract_messages(cls, path: Path) -> tuple[str, str]:
-        messages = _read_messages(path)
+        messages = read_jsonl_dicts(path)
         human = " ".join(
             _msg_text(m["message"])
             for m in messages
@@ -64,17 +65,6 @@ class ClaudeSource(BaseSource):
         return human, assistant
 
 
-def _read_messages(path: Path) -> list[dict]:
-    try:
-        with open(path, "rb") as f:
-            return [
-                item for item in ijson.items(f, "", multiple_values=True)
-                if isinstance(item, dict)
-            ]
-    except Exception:
-        return []
-
-
 def _extract_cwd(messages: list[dict]) -> str | None:
     for m in messages:
         cwd = m.get("cwd")
@@ -83,29 +73,9 @@ def _extract_cwd(messages: list[dict]) -> str | None:
     return None
 
 
-def _extract_session_id(messages: list[dict], path: Path) -> str:
-    for m in messages:
-        sid = m.get("sessionId")
-        if sid:
-            return sid
-    return path.stem
-
-
 def _is_assistant(m: dict) -> bool:
     msg = m.get("message", {})
     return isinstance(msg, dict) and msg.get("role") == "assistant"
-
-
-def _parse_timestamps(messages: list[dict]) -> list[datetime]:
-    timestamps = []
-    for m in messages:
-        ts = m.get("timestamp")
-        if ts:
-            try:
-                timestamps.append(datetime.fromisoformat(ts.replace("Z", "+00:00")))
-            except Exception:
-                pass
-    return timestamps
 
 
 def _extract_title(user_msgs: list[dict]) -> str | None:

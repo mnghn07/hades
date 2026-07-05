@@ -1,17 +1,19 @@
 import time
 import subprocess
 import platform
-from datetime import datetime, timezone, timedelta
+from datetime import datetime, timezone
 
 import typer
 from rich import box
 from rich.console import Console
 from rich.live import Live
+from rich.markup import escape
 from rich.table import Table
 
-from hades.classify import classify_project
 from hades.db import get_db
-from hades.commands.attention import WAIT_THRESHOLD_MINUTES, RECENCY_HOURS
+from hades.indexer import refresh_index
+from hades.process_checker import update_statuses
+from hades.waiting import recent_human_sessions
 
 console = Console()
 
@@ -33,7 +35,7 @@ def cmd_watch(
     try:
         with Live(console=console, refresh_per_second=1, screen=False) as live:
             while True:
-                table, newly_waiting = _build_table(notified)
+                table, newly_waiting = _build_table(notified, refresh=True)
                 live.update(table)
 
                 if notify:
@@ -46,8 +48,13 @@ def cmd_watch(
         console.print("\n[dim]Stopped.[/dim]")
 
 
-def _build_table(notified: set[str]) -> tuple[Table, list[dict]]:
+def _build_table(notified: set[str], refresh: bool = False) -> tuple[Table, list[dict]]:
     db = get_db()
+    if refresh:
+        # The CLI callback only indexes once at startup; a live view must
+        # re-scan on every tick or it will never see new activity.
+        refresh_index(db)
+        update_statuses(db)
     now = datetime.now(timezone.utc)
 
     table = Table(
@@ -60,38 +67,16 @@ def _build_table(notified: set[str]) -> tuple[Table, list[dict]]:
     table.add_column("TITLE", style="dim", max_width=38)
     table.add_column("STATUS", width=12)
 
-    if "sessions" not in db.table_names():
-        return table, []
-
-    recency_cutoff = (now - timedelta(hours=RECENCY_HOURS)).isoformat()
-    sessions = list(db.execute(
-        "SELECT * FROM sessions WHERE status IN ('running', 'idle') "
-        "AND last_active_at >= ? ORDER BY last_active_at ASC",
-        [recency_cutoff]
-    ).fetchall())
-    col_names = [d[0] for d in db.execute("SELECT * FROM sessions LIMIT 0").description]
-
     newly_waiting = []
-    for row in sessions:
-        s = dict(zip(col_names, row))
-        _, session_type = classify_project(s["project_path"])
-        if session_type != "human":
-            continue
-
-        last_active = datetime.fromisoformat(s["last_active_at"])
-        if last_active.tzinfo is None:
-            last_active = last_active.replace(tzinfo=timezone.utc)
-
-        waiting_since = now - last_active
-        mins = int(waiting_since.total_seconds() / 60)
-        is_waiting = mins >= WAIT_THRESHOLD_MINUTES
+    for s in recent_human_sessions(db, now):
+        mins = s["_waiting_minutes"]
         project = s["project_path"].split("/")[-1] or s["project_path"]
-        wait_str = f"[bold yellow]{mins}m[/bold yellow]" if is_waiting else f"[dim]{mins}m[/dim]"
+        wait_str = f"[bold yellow]{mins}m[/bold yellow]" if s["_is_waiting"] else f"[dim]{mins}m[/dim]"
         status = "[green]● running[/green]" if s["status"] == "running" else "[dim]○ idle[/dim]"
 
-        table.add_row(s["tool"], project, wait_str, (s["title"] or "")[:36], status)
+        table.add_row(escape(s["tool"]), escape(project), wait_str, escape((s["title"] or "")[:36]), status)
 
-        if is_waiting and s["id"] not in notified:
+        if s["_is_waiting"] and s["id"] not in notified:
             newly_waiting.append(s)
 
     return table, newly_waiting

@@ -1,6 +1,9 @@
+import sqlite3
+
 import typer
 from rich import box
 from rich.console import Console
+from rich.markup import escape
 from rich.table import Table
 import pendulum
 
@@ -10,6 +13,10 @@ from hades.db import get_db
 console = Console()
 
 DEFAULT_LIMIT = 20
+
+# Private-use sentinels: survive rich escaping, then swapped for real markup.
+_HL_OPEN = "\ue000"
+_HL_CLOSE = "\ue001"
 
 
 def cmd_search(
@@ -23,25 +30,26 @@ def cmd_search(
         console.print("[yellow]No sessions indexed yet. Sessions will be indexed automatically.[/yellow]")
         return
 
-    sql = """
+    sql = f"""
         SELECT
             sessions.tool, sessions.project_path, sessions.title,
             sessions.last_active_at, sessions.status,
-            snippet(sessions_fts, -1, '[bold yellow]', '[/bold yellow]', '…', 12) AS snippet
+            snippet(sessions_fts, -1, '{_HL_OPEN}', '{_HL_CLOSE}', '…', 12) AS snippet
         FROM sessions_fts
         JOIN sessions ON sessions.id = sessions_fts.id
         WHERE sessions_fts MATCH ?
     """
-    params: list = [query]
+    filters = ""
+    params: list = []
     if not show_archived:
-        sql += " AND (sessions.is_archived IS NULL OR sessions.is_archived = 0)"
+        filters += " AND (sessions.is_archived IS NULL OR sessions.is_archived = 0)"
     if tool:
-        sql += " AND sessions.tool = ?"
+        filters += " AND sessions.tool = ?"
         params.append(tool)
-    sql += " ORDER BY rank LIMIT ?"
+    filters += " ORDER BY rank LIMIT ?"
     params.append(limit)
 
-    rows = list(db.execute(sql, params).fetchall())
+    rows = _run_query(db, sql + filters, query, params)
     if not rows:
         console.print("[dim]No matches found.[/dim]")
         return
@@ -65,8 +73,30 @@ def cmd_search(
         last_active = pendulum.parse(last_active_at).diff_for_humans()
         status_display = status_icons.get(status, status)
         table.add_row(
-            tool_name, display_project, (title or "")[:23],
-            snippet.replace("\n", " "), last_active, status_display,
+            escape(tool_name), escape(display_project), escape((title or "")[:23]),
+            _highlight(snippet.replace("\n", " ")), last_active, status_display,
         )
 
     console.print(table)
+
+
+def _run_query(db, sql: str, query: str, params: list) -> list:
+    """Run the FTS query; if the raw query isn't valid FTS5 syntax
+    (hyphens, quotes, stray operators), retry it as a quoted phrase."""
+    try:
+        return list(db.execute(sql, [query, *params]).fetchall())
+    except sqlite3.OperationalError:
+        phrase = '"' + query.replace('"', '""') + '"'
+        try:
+            return list(db.execute(sql, [phrase, *params]).fetchall())
+        except sqlite3.OperationalError:
+            return []
+
+
+def _highlight(snippet: str) -> str:
+    """Escape user content, then restore the FTS match markers as markup."""
+    return (
+        escape(snippet)
+        .replace(_HL_OPEN, "[bold yellow]")
+        .replace(_HL_CLOSE, "[/bold yellow]")
+    )

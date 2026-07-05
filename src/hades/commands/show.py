@@ -2,6 +2,7 @@ from pathlib import Path
 
 import typer
 from rich.console import Console
+from rich.markup import escape
 from rich.panel import Panel
 
 from hades.db import get_db
@@ -29,7 +30,7 @@ def cmd_show(
         raise typer.Exit(1)
 
     console.print(Panel(
-        f"[bold]{session['tool']}[/bold] · {session['project_path']} · {session_id}",
+        f"[bold]{escape(session['tool'])}[/bold] · {escape(session['project_path'])} · {escape(session_id)}",
         expand=False
     ))
 
@@ -50,8 +51,8 @@ def _render(path: Path, full: bool) -> None:
 
 def _print_turn(role: str, text: str) -> None:
     if role == "user":
-        console.print(f"[bold blue]YOU[/bold blue]  {text}")
+        console.print(f"[bold blue]YOU[/bold blue]  {escape(text)}")
     elif role == "tool":
-        console.print(f"[dim]── {text.strip('<>')} ──[/dim]")
+        console.print(f"[dim]── {escape(text.strip('<>'))} ──[/dim]")
     else:
-        console.print(f"[bold green] AI[/bold green]  {text}")
+        console.print(f"[bold green] AI[/bold green]  {escape(text)}")

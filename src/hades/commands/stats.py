@@ -3,15 +3,15 @@ from datetime import datetime, timezone, timedelta
 import typer
 from rich import box
 from rich.console import Console
+from rich.markup import escape
 from rich.table import Table
 import pendulum
 
-from hades.classify import classify_project
 from hades.db import get_db
+from hades.waiting import format_wait, waiting_sessions
 
 console = Console()
 
-WAIT_THRESHOLD_MINUTES = 3
 STATUS_ORDER = ["running", "idle", "ended"]
 
 
@@ -72,25 +72,16 @@ def cmd_stats(
     for tool_name in sorted(by_tool, key=lambda t: by_tool[t]["sessions"], reverse=True):
         entry = by_tool[tool_name]
         last_active = pendulum.instance(entry["last_active"]).diff_for_humans()
-        table.add_row(tool_name, str(entry["sessions"]), str(entry["messages"]), last_active)
+        table.add_row(escape(tool_name), str(entry["sessions"]), str(entry["messages"]), last_active)
 
     console.print(table)
 
-    now = datetime.now(timezone.utc)
-    waiting = []
-    for s in sessions:
-        if s["status"] not in ("running", "idle"):
-            continue
-        _, session_type = classify_project(s["project_path"])
-        if session_type != "human":
-            continue
-        waiting_minutes = int((now - _last_active(s)).total_seconds() / 60)
-        if waiting_minutes >= WAIT_THRESHOLD_MINUTES:
-            waiting.append(waiting_minutes)
-
+    # Same definition as `hades attention` — the two must never disagree.
+    waiting = waiting_sessions(db)
     if waiting:
-        longest = max(waiting)
-        longest_str = f"{longest}m" if longest < 60 else f"{longest // 60}h {longest % 60}m"
-        console.print(f"\n[bold red]{len(waiting)} session(s) waiting on you[/bold red], longest {longest_str}")
+        longest = waiting[0]["_waiting_minutes"]
+        console.print(
+            f"\n[bold red]{len(waiting)} session(s) waiting on you[/bold red], longest {format_wait(longest)}"
+        )
     else:
         console.print("\n[green]✓ No sessions waiting on you[/green]")

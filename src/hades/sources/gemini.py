@@ -1,9 +1,9 @@
-import json
 from datetime import datetime, timezone
 from pathlib import Path
 
 from hades.models import Session
 from .base import BaseSource
+from .common import messages_of, parse_timestamps, read_json_document
 
 
 class GeminiSource(BaseSource):
@@ -18,11 +18,12 @@ class GeminiSource(BaseSource):
 
     @classmethod
     def parse_file(cls, path: Path) -> Session | None:
-        messages = _read_messages(path)
+        data = read_json_document(path)
+        messages = messages_of(data)
         if not messages:
             return None
 
-        timestamps = _parse_timestamps(messages)
+        timestamps = parse_timestamps(messages, keys=("timestamp", "createTime"))
         started_at = min(timestamps) if timestamps else datetime.now(timezone.utc)
         last_active_at = max(timestamps) if timestamps else started_at
 
@@ -37,7 +38,7 @@ class GeminiSource(BaseSource):
         return Session(
             id=f"gemini:{path.stem}",
             tool="gemini",
-            project_path=str(path.parent.parent),
+            project_path=_extract_project_path(data) or str(path.parent.parent),
             started_at=started_at,
             last_active_at=last_active_at,
             message_count=len(messages),
@@ -48,31 +49,19 @@ class GeminiSource(BaseSource):
 
     @classmethod
     def extract_messages(cls, path: Path) -> tuple[str, str]:
-        messages = _read_messages(path)
+        messages = messages_of(read_json_document(path))
         human = " ".join(_parts_text(m) for m in messages if m.get("role") == "user")
         assistant = " ".join(_parts_text(m) for m in messages if m.get("role") == "model")
         return human, assistant
 
 
-def _read_messages(path: Path) -> list[dict]:
-    try:
-        with open(path, encoding="utf-8") as f:
-            data = json.load(f)
-        return data if isinstance(data, list) else data.get("messages", [])
-    except Exception:
-        return []
-
-
-def _parse_timestamps(messages: list[dict]) -> list[datetime]:
-    timestamps = []
-    for m in messages:
-        ts = m.get("timestamp") or m.get("createTime")
-        if ts:
-            try:
-                timestamps.append(datetime.fromisoformat(str(ts).replace("Z", "+00:00")))
-            except Exception:
-                pass
-    return timestamps
+def _extract_project_path(data: dict | list) -> str | None:
+    if not isinstance(data, dict):
+        return None
+    for key in ("projectPath", "cwd", "workingDirectory"):
+        if data.get(key):
+            return data[key]
+    return None
 
 
 def _parts_text(msg: dict) -> str:
