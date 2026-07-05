@@ -86,9 +86,18 @@ def _send_notification(session: dict) -> None:
     if platform.system() != "Darwin":
         return
     project = session["project_path"].split("/")[-1] or session["project_path"]
-    title = f"hades · {session['tool']} waiting"
-    message = f"{project} has been waiting for your input"
+    title = _osa_quote(f"hades · {session['tool']} waiting")
+    message = _osa_quote(f"{project} has been waiting for your input")
     subprocess.run([
         "osascript", "-e",
         f'display notification "{message}" with title "{title}" sound name "default"'
     ], capture_output=True, check=False)
+
+
+def _osa_quote(text: str) -> str:
+    """Escape a string for interpolation inside an AppleScript string literal.
+
+    Session data (project names, tool names) is untrusted — without this, a
+    crafted directory name could inject AppleScript (e.g. `do shell script`).
+    """
+    return text.replace("\\", "\\\\").replace('"', '\\"')

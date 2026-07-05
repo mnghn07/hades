@@ -54,12 +54,14 @@ def refresh_index(db: sqlite_utils.Database) -> None:
             }
 
             # A previous version may have stored this file under a different id
-            # (or this id under a different file). Clear both to keep the
-            # unique raw_path index and pk consistent before upserting.
-            db.execute(
-                "DELETE FROM sessions WHERE raw_path = ? AND id != ?",
+            # (or this id under a different file). Clear both — including the
+            # FTS row, which would otherwise be orphaned — before upserting.
+            for (old_id,) in db.execute(
+                "SELECT id FROM sessions WHERE raw_path = ? AND id != ?",
                 [path_str, session.id],
-            )
+            ).fetchall():
+                db.execute("DELETE FROM sessions WHERE id = ?", [old_id])
+                db.execute("DELETE FROM sessions_fts WHERE id = ?", [old_id])
             db["sessions"].upsert(row, pk="id")
 
             db.execute("DELETE FROM sessions_fts WHERE id = ?", [session.id])

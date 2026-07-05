@@ -37,6 +37,11 @@ def parse_turn(msg: dict, full: bool) -> tuple[str, str] | None:
         content = msg.get("content") or msg.get("parts", "")
         return _normalize_turn("user" if role == "user" else "assistant", content, full)
 
+    # Cowork variant: type-based turns without an inner message
+    if outer_type in ("human", "assistant") and "message" not in msg:
+        content = msg.get("content", "")
+        return _normalize_turn("user" if outer_type == "human" else "assistant", content, full)
+
     # Tool call results (only surfaced with full)
     if full and outer_type in ("tool_result", "tool_use"):
         return "tool", f"<TOOL {msg.get('name', outer_type)}>"

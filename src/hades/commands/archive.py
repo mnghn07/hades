@@ -35,7 +35,7 @@ def cmd_archive(
 
     dest_dir = ARCHIVE_ROOT / tool
     dest_dir.mkdir(parents=True, exist_ok=True)
-    dest_path = dest_dir / raw_path.name
+    dest_path = _unique_dest(dest_dir, raw_path.name)
 
     shutil.move(str(raw_path), str(dest_path))
 
@@ -46,3 +46,19 @@ def cmd_archive(
     db.conn.commit()
 
     console.print(f"[green]Archived[/green] {session_id} → {dest_path}")
+
+
+def _unique_dest(dest_dir: Path, name: str) -> Path:
+    """Never overwrite an existing archived file — suffix a counter instead.
+
+    Same-named session files from different projects (e.g. Gemini's
+    chats/session-1.json) would otherwise clobber each other.
+    """
+    dest = dest_dir / name
+    if not dest.exists():
+        return dest
+    stem, suffix = dest.stem, dest.suffix
+    counter = 1
+    while (dest := dest_dir / f"{stem}.{counter}{suffix}").exists():
+        counter += 1
+    return dest

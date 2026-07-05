@@ -36,7 +36,9 @@ class GeminiSource(BaseSource):
                 title = (first.get("text", "") if isinstance(first, dict) else str(first))[:80]
 
         return Session(
-            id=f"gemini:{path.stem}",
+            # Include the project-hash directory: chat filenames (session-1.json)
+            # repeat across projects and would otherwise collide.
+            id=f"gemini:{path.parent.parent.name}:{path.stem}",
             tool="gemini",
             project_path=_extract_project_path(data) or str(path.parent.parent),
             started_at=started_at,

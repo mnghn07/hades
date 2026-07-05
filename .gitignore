@@ -8,3 +8,5 @@ build/
 *.db
 .DS_Store
 src/hades/_version.py
+.claude/
+.vscode/
