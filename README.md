@@ -34,7 +34,7 @@ hades watch --no-notify                       # live view only
 
 ## How it works
 
-On every command, `hades` scans your local session files, indexes them into a SQLite database, and checks running processes to show live status. Only changed files are re-parsed, so runs stay fast.
+On every command, `hades` scans your local session files, indexes them into a SQLite database, and checks running processes to show live status. Only changed files are re-parsed, so runs stay fast. Everything stays on your machine — nothing is sent anywhere.
 
 **`hades list`** shows all sessions across tools, sorted by most recently active:
 
@@ -82,19 +82,12 @@ uv run pylint $(git ls-files '*.py')   # lint
 uv build                 # build sdist + wheel into dist/
 ```
 
-## Roadmap
+Versioning is derived from git tags (via `hatch-vcs`) — there's nothing to bump by hand. Pushing a tag like `v0.1.1` builds and publishes that version to PyPI automatically:
 
-### v1.1
-
-- `hades search <term>` — full-text search across all transcripts
-- `hades stats` — session counts, message volume, most active projects
-- `hades thinking <session-id>` — extract just the model's reasoning blocks
-- `hades export`, `hades archive`, `hades rm`
-
-### v2
-
-- Cursor support (via [`cursor-session`](https://github.com/iksnae/cursor-session))
-- Homebrew tap
+```bash
+git tag v0.1.1
+git push origin v0.1.1
+```
 
 ## License
 
