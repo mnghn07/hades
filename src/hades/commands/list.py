@@ -1,6 +1,7 @@
 from datetime import datetime, timezone, timedelta
 
 import typer
+from rich import box
 from rich.console import Console
 from rich.table import Table
 import pendulum
@@ -92,7 +93,7 @@ def cmd_list(
     rows = human_sessions + _group_agent_sessions(agent_sessions)
     rows.sort(key=_last_active, reverse=True)
 
-    table = Table(show_header=True, header_style="bold", box=None, pad_edge=False, expand=True)
+    table = Table(show_header=True, header_style="bold", box=box.ROUNDED, expand=True)
     table.add_column("TOOL", style="cyan", width=10)
     table.add_column("PROJECT", style="white", max_width=30)
     table.add_column("TYPE", style="magenta", width=8)

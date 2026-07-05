@@ -4,6 +4,7 @@ import platform
 from datetime import datetime, timezone, timedelta
 
 import typer
+from rich import box
 from rich.console import Console
 from rich.live import Live
 from rich.table import Table
@@ -50,7 +51,7 @@ def _build_table(notified: set[str]) -> tuple[Table, list[dict]]:
     now = datetime.now(timezone.utc)
 
     table = Table(
-        show_header=True, header_style="bold", box=None, pad_edge=False,
+        show_header=True, header_style="bold", box=box.ROUNDED,
         title=f"[dim]{now.strftime('%H:%M:%S')}[/dim]",
     )
     table.add_column("TOOL", style="cyan", width=10)

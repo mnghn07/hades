@@ -1,5 +1,6 @@
 from datetime import datetime, timezone, timedelta
 
+from rich import box
 from rich.console import Console
 from rich.table import Table
 
@@ -53,7 +54,7 @@ def cmd_attention():
         console.print("[green]✓ No sessions need attention.[/green]")
         return
 
-    table = Table(show_header=True, header_style="bold", box=None, pad_edge=False)
+    table = Table(show_header=True, header_style="bold", box=box.ROUNDED)
     table.add_column("TOOL", style="cyan", width=10)
     table.add_column("PROJECT", style="white", max_width=28)
     table.add_column("WAITING", style="bold yellow", width=12)
