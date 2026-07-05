@@ -1,6 +1,6 @@
 # hades
 
-> *The dead or the living will be seen by Hades. No AI session escapes.*
+> *Keeper of sessions, living and dead.*
 
 A CLI for viewing, searching, and managing your AI coding sessions across Claude Code, Codex CLI, Gemini CLI, and Cowork — all from one terminal.
 
