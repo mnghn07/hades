@@ -30,12 +30,16 @@ def _ensure_schema(db: sqlite_utils.Database) -> None:
             "file_mtime": float,
             "human_messages": str,
             "assistant_messages": str,
+            "is_archived": int,
         }, pk="id")
         db["sessions"].create_index(["raw_path"], unique=True)
     else:
         # Migrate: add columns added after initial schema
         existing_cols = {col.name for col in db["sessions"].columns}
-        for col, col_type in [("human_messages", str), ("assistant_messages", str), ("file_mtime", float)]:
+        for col, col_type in [
+            ("human_messages", str), ("assistant_messages", str),
+            ("file_mtime", float), ("is_archived", int),
+        ]:
             if col not in existing_cols:
                 db["sessions"].add_column(col, col_type)
 

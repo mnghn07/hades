@@ -54,6 +54,7 @@ def cmd_list(
     hour: int = typer.Option(0, "--hour", help="Show sessions active within the last N hours"),
     minute: int = typer.Option(0, "--min", help="Show sessions active within the last N minutes"),
     show_all: bool = typer.Option(False, "--all", help="Show every session, ignoring recency"),
+    show_archived: bool = typer.Option(False, "--show-archived", help="Include archived sessions"),
 ):
     db = get_db()
     if "sessions" not in db.table_names():
@@ -65,6 +66,9 @@ def cmd_list(
     col_names = [d[0] for d in db.execute(query).description]
 
     sessions = [dict(zip(col_names, row)) for row in rows]
+
+    if not show_archived:
+        sessions = [s for s in sessions if not s["is_archived"]]
 
     if tool:
         sessions = [s for s in sessions if s["tool"] == tool]

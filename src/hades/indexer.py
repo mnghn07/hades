@@ -47,6 +47,12 @@ def refresh_index(db: sqlite_utils.Database) -> None:
 
             db["sessions"].upsert(row, pk="id")
 
+            db.execute("DELETE FROM sessions_fts WHERE id = ?", [session.id])
+            db.execute(
+                "INSERT INTO sessions_fts (id, human_messages, assistant_messages) VALUES (?, ?, ?)",
+                [session.id, human_text, assistant_text],
+            )
+
     _remove_stale(db, indexed_paths)
 
 
@@ -55,8 +61,9 @@ def _remove_stale(db: sqlite_utils.Database, indexed_paths: set[str]) -> None:
     if "sessions" not in db.table_names():
         return
 
-    db_paths = [row[0] for row in db.execute("SELECT raw_path FROM sessions").fetchall()]
-    stale = [p for p in db_paths if p not in indexed_paths]
+    db_rows = db.execute("SELECT id, raw_path FROM sessions WHERE is_archived IS NOT 1").fetchall()
+    stale_rows = [(session_id, path_str) for session_id, path_str in db_rows if path_str not in indexed_paths]
 
-    for path_str in stale:
+    for session_id, path_str in stale_rows:
         db.execute("DELETE FROM sessions WHERE raw_path = ?", [path_str])
+        db.execute("DELETE FROM sessions_fts WHERE id = ?", [session_id])
