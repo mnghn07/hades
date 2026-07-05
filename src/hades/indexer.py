@@ -1,5 +1,3 @@
-from pathlib import Path
-
 import sqlite_utils
 
 from hades.sources import ALL_SOURCES

@@ -58,8 +58,8 @@ def update_statuses(db: sqlite_utils.Database) -> None:
 
     running_ids = set(latest_per_cwd.values())
 
-    rows = db.execute("SELECT id, project_path, status FROM sessions").fetchall()
-    for session_id, project_path, current_status in rows:
+    rows = db.execute("SELECT id, status FROM sessions").fetchall()
+    for session_id, current_status in rows:
         if session_id in running_ids:
             new_status = "running"
         elif current_status == "running":
@@ -91,11 +91,3 @@ def _classify(name: str, cmdline: str) -> str | None:
         return "gemini"
 
     return None
-
-
-def _resolve_status(project_path: str, running_cwds: set[str], current_status: str) -> str:
-    if project_path in running_cwds:
-        return "running"
-    if current_status == "running":
-        return "ended"
-    return current_status

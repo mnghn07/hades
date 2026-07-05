@@ -56,7 +56,7 @@ class GeminiSource(BaseSource):
 
 def _read_messages(path: Path) -> list[dict]:
     try:
-        with open(path) as f:
+        with open(path, encoding="utf-8") as f:
             data = json.load(f)
         return data if isinstance(data, list) else data.get("messages", [])
     except Exception:

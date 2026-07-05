@@ -1,6 +1,5 @@
 import json
 from pathlib import Path
-from typing import Optional
 
 import typer
 from rich.console import Console
@@ -52,7 +51,7 @@ def _render_jsonl(path: Path, full: bool) -> None:
 
 
 def _render_json(path: Path, full: bool) -> None:
-    with open(path) as f:
+    with open(path, encoding="utf-8") as f:
         data = json.load(f)
     messages = data if isinstance(data, list) else data.get("messages", [])
     rendered = 0

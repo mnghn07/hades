@@ -69,7 +69,7 @@ class CoworkSource(BaseSource):
 
 def _read_messages(path: Path) -> list[dict]:
     try:
-        with open(path) as f:
+        with open(path, encoding="utf-8") as f:
             data = json.load(f)
         items = data if isinstance(data, list) else data.get("messages", [])
         return [m for m in items if isinstance(m, dict)]

@@ -4,7 +4,7 @@ from hades import __version__
 
 app = typer.Typer(
     name="hades",
-    help="No AI session escapes. View, search, and manage AI coding sessions across Claude, Codex, Gemini, and Cowork.",
+    help="View, search, and manage AI coding sessions across Claude, Codex, Gemini, and Cowork.",
     no_args_is_help=True,
 )
 
@@ -17,7 +17,9 @@ def _version_callback(value: bool) -> None:
 
 @app.callback()
 def main(
-    version: Optional[bool] = typer.Option(None, "--version", "-v", callback=_version_callback, is_eager=True, help="Show version and exit"),
+    _version: Optional[bool] = typer.Option(
+        None, "--version", "-v", callback=_version_callback, is_eager=True, help="Show version and exit"
+    ),
 ):
     from hades.db import get_db
     from hades.indexer import refresh_index
@@ -54,7 +56,9 @@ def attention_cmd():
 
 @app.command("watch", help="Live view of sessions needing attention (fires macOS notifications by default).")
 def watch_cmd(
-    notify: bool = typer.Option(True, "--notify/--no-notify", help="Fire macOS notifications for newly-waiting sessions"),
+    notify: bool = typer.Option(
+        True, "--notify/--no-notify", help="Fire macOS notifications for newly-waiting sessions"
+    ),
 ):
     from hades.commands.watch import cmd_watch
     cmd_watch(notify=notify)

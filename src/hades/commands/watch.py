@@ -17,7 +17,9 @@ REFRESH_SECONDS = 30
 
 
 def cmd_watch(
-    notify: bool = typer.Option(True, "--notify/--no-notify", help="Fire macOS notifications for newly-waiting sessions"),
+    notify: bool = typer.Option(
+        True, "--notify/--no-notify", help="Fire macOS notifications for newly-waiting sessions"
+    ),
 ):
     # Pre-seed notified with sessions already past the threshold so startup
     # doesn't fire a notification storm for everything already waiting.
@@ -46,7 +48,10 @@ def _build_table(notified: set[str]) -> tuple[Table, list[dict]]:
     db = get_db()
     now = datetime.now(timezone.utc)
 
-    table = Table(show_header=True, header_style="bold", box=None, pad_edge=False, title=f"[dim]{now.strftime('%H:%M:%S')}[/dim]")
+    table = Table(
+        show_header=True, header_style="bold", box=None, pad_edge=False,
+        title=f"[dim]{now.strftime('%H:%M:%S')}[/dim]",
+    )
     table.add_column("TOOL", style="cyan", width=10)
     table.add_column("PROJECT", style="white", max_width=28)
     table.add_column("WAITING", style="bold yellow", width=12)
@@ -58,7 +63,8 @@ def _build_table(notified: set[str]) -> tuple[Table, list[dict]]:
 
     recency_cutoff = (now - timedelta(hours=RECENCY_HOURS)).isoformat()
     sessions = list(db.execute(
-        "SELECT * FROM sessions WHERE status IN ('running', 'idle') AND last_active_at >= ? ORDER BY last_active_at ASC",
+        "SELECT * FROM sessions WHERE status IN ('running', 'idle') "
+        "AND last_active_at >= ? ORDER BY last_active_at ASC",
         [recency_cutoff]
     ).fetchall())
     col_names = [d[0] for d in db.execute("SELECT * FROM sessions LIMIT 0").description]
@@ -94,4 +100,4 @@ def _send_notification(session: dict) -> None:
     subprocess.run([
         "osascript", "-e",
         f'display notification "{message}" with title "{title}" sound name "default"'
-    ], capture_output=True)
+    ], capture_output=True, check=False)

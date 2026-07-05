@@ -1,4 +1,7 @@
+import re
+from datetime import datetime, timezone, timedelta
 from typing import Optional
+
 import typer
 from rich.console import Console
 from rich.table import Table
@@ -7,6 +10,16 @@ import pendulum
 from hades.db import get_db
 
 console = Console()
+
+SINCE_UNITS = {"m": "minutes", "h": "hours", "d": "days", "w": "weeks"}
+
+
+def _parse_since(since: str) -> datetime:
+    match = re.fullmatch(r"(\d+)([mhdw])", since.strip().lower())
+    if not match:
+        raise typer.BadParameter("Expected a duration like 2d, 1w, or 3h")
+    amount, unit = match.groups()
+    return datetime.now(timezone.utc) - timedelta(**{SINCE_UNITS[unit]: int(amount)})
 
 
 def cmd_list(
@@ -29,6 +42,14 @@ def cmd_list(
         sessions = [s for s in sessions if s["tool"] == tool]
     if active:
         sessions = [s for s in sessions if s["status"] in ("running", "idle")]
+    if since:
+        cutoff = _parse_since(since)
+
+        def _last_active(s: dict) -> datetime:
+            dt = datetime.fromisoformat(s["last_active_at"])
+            return dt if dt.tzinfo else dt.replace(tzinfo=timezone.utc)
+
+        sessions = [s for s in sessions if _last_active(s) >= cutoff]
 
     if not sessions:
         console.print("[dim]No sessions found.[/dim]")

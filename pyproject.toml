@@ -1,11 +1,9 @@
 [project]
 name = "hades-cli"
 version = "0.1.0"
-description = "No AI session escapes. A local CLI for viewing, searching, and managing AI coding sessions across Claude Code, Codex, Gemini, and Cowork."
+description = "A local CLI for viewing, searching, and managing AI coding sessions across Claude Code, Codex, Gemini, and Cowork."
 readme = "README.md"
-authors = [
-    { name = "mnghn07", email = "ngh.nhatminh0712@gmail.com" }
-]
+authors = [{ name = "mnghn07", email = "ngh.nhatminh0712@gmail.com" }]
 requires-python = ">=3.11"
 dependencies = [
     "typer>=0.15",
@@ -33,7 +31,24 @@ packages = ["src/hades"]
 
 [dependency-groups]
 dev = [
+    "pylint>=4.0.6",
     "pytest>=8",
     "pytest-mock>=3",
     "typer>=0.15",
 ]
+
+[tool.pylint.main]
+disable = [
+    "missing-module-docstring",
+    "missing-function-docstring",
+    "missing-class-docstring",
+    "import-outside-toplevel",
+    "duplicate-code",
+    "broad-exception-caught",
+    "too-many-locals",
+    "too-many-instance-attributes",
+    "redefined-outer-name",
+]
+
+[tool.pylint.format]
+max-line-length = 120

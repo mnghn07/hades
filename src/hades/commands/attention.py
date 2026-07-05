@@ -1,9 +1,7 @@
 from datetime import datetime, timezone, timedelta
 
-import typer
 from rich.console import Console
 from rich.table import Table
-import pendulum
 
 from hades.db import get_db
 
@@ -23,7 +21,8 @@ def cmd_attention():
     recency_cutoff = (now - timedelta(hours=RECENCY_HOURS)).isoformat()
 
     sessions = list(db.execute(
-        "SELECT * FROM sessions WHERE status IN ('running', 'idle') AND last_active_at >= ? ORDER BY last_active_at ASC",
+        "SELECT * FROM sessions WHERE status IN ('running', 'idle') "
+        "AND last_active_at >= ? ORDER BY last_active_at ASC",
         [recency_cutoff]
     ).fetchall())
     col_names = [d[0] for d in db.execute("SELECT * FROM sessions LIMIT 0").description]
