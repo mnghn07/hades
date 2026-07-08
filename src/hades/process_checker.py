@@ -82,12 +82,22 @@ def _classify(name: str, cmdline: str) -> str | None:
     if "stream-json" in cmdline and ("claude" in name or re.match(r"\d+\.\d+\.\d+", name)):
         return "claude"
 
-    # Codex CLI
+    # Codex CLI: JS shim spawns a native binary named 'codex' as a child
+    # process (verified against a real npx-launched session), so the
+    # eventual process name is 'codex', not 'node'.
     if "codex" in name:
         return "codex"
 
-    # Gemini CLI (not the desktop app — already excluded by cwd check above)
-    if name == "gemini" or ("gemini" in cmdline and "cli" in cmdline):
+    # Gemini CLI (not the desktop app — already excluded by cwd check above).
+    # It's a pure-JS process (no native binary), so `name` is 'node', not
+    # 'gemini' — match the invoked script path instead (verified against a
+    # real npx-launched session, e.g. ".../node_modules/.bin/gemini").
+    if name == "gemini":
         return "gemini"
+    if name == "node":
+        for part in cmdline.split():
+            basename = part.rsplit("/", 1)[-1]
+            if basename == "gemini":
+                return "gemini"
 
     return None

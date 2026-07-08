@@ -5,9 +5,10 @@ from datetime import datetime, timezone
 
 import typer
 from rich import box
-from rich.console import Console
+from rich.console import Console, Group
 from rich.live import Live
 from rich.markup import escape
+from rich.spinner import Spinner
 from rich.table import Table
 
 from hades.db import get_db
@@ -18,6 +19,7 @@ from hades.waiting import recent_human_sessions
 console = Console()
 
 REFRESH_SECONDS = 30
+MIN_SPINNER_SECONDS = 0.5
 
 
 def cmd_watch(
@@ -33,17 +35,26 @@ def cmd_watch(
     console.print("[bold]hades watch[/bold] · refreshing every 30s · [dim]Ctrl+C to exit[/dim]\n")
 
     try:
-        with Live(console=console, refresh_per_second=1, screen=False) as live:
+        with Live(console=console, refresh_per_second=4, screen=False) as live:
             while True:
+                live.update(Spinner("dots", text="[dim]checking for sessions...[/dim]"))
+                live.refresh()
+                check_started = time.monotonic()
                 table, newly_waiting = _build_table(notified, refresh=True)
-                live.update(table)
+                elapsed = time.monotonic() - check_started
+                if elapsed < MIN_SPINNER_SECONDS:
+                    time.sleep(MIN_SPINNER_SECONDS - elapsed)
 
                 if notify:
                     for s in newly_waiting:
                         _send_notification(s)
                         notified.add(s["id"])
 
-                time.sleep(REFRESH_SECONDS)
+                footer_spinner = Spinner("dots")
+                for remaining in range(REFRESH_SECONDS, 0, -1):
+                    footer_spinner.update(text=f"[dim]next check in {remaining}s[/dim]")
+                    live.update(Group(table, footer_spinner))
+                    time.sleep(1)
     except KeyboardInterrupt:
         console.print("\n[dim]Stopped.[/dim]")
 

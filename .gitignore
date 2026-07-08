@@ -10,3 +10,6 @@ build/
 src/hades/_version.py
 .claude/
 .vscode/
+
+AGENTS.md
+CLAUDE.md
