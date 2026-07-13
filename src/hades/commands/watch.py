@@ -5,7 +5,7 @@ from datetime import datetime, timezone
 
 import typer
 from rich import box
-from rich.console import Console, Group
+from rich.console import Group
 from rich.live import Live
 from rich.markup import escape
 from rich.spinner import Spinner
@@ -16,7 +16,7 @@ from hades.indexer import refresh_index
 from hades.process_checker import update_statuses
 from hades.waiting import recent_human_sessions
 
-console = Console()
+from hades.console import console
 
 REFRESH_SECONDS = 30
 MIN_SPINNER_SECONDS = 0.5

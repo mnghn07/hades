@@ -1,11 +1,10 @@
 from pathlib import Path
 
 import typer
-from rich.console import Console
 
 from hades.db import get_db
 
-console = Console()
+from hades.console import console
 
 
 def cmd_purge(

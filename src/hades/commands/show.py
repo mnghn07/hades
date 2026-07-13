@@ -1,14 +1,13 @@
 from pathlib import Path
 
 import typer
-from rich.console import Console
 from rich.markup import escape
 from rich.panel import Panel
 
 from hades.db import get_db
 from hades.transcript import iter_raw_messages, parse_turn
 
-console = Console()
+from hades.console import console
 
 
 def cmd_show(

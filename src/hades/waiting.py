@@ -45,8 +45,16 @@ def recent_human_sessions(db: sqlite_utils.Database, now: datetime | None = None
             last_active = last_active.replace(tzinfo=timezone.utc)
 
         minutes = int((now - last_active).total_seconds() / 60)
-        s["_waiting_minutes"] = minutes
-        s["_is_waiting"] = minutes >= WAIT_THRESHOLD_MINUTES
+        waiting_since = s.get("waiting_since")
+        if waiting_since:
+            ws = datetime.fromisoformat(waiting_since)
+            if ws.tzinfo is None:
+                ws = ws.replace(tzinfo=timezone.utc)
+            s["_waiting_minutes"] = int((now - ws).total_seconds() / 60)
+            s["_is_waiting"] = True
+        else:
+            s["_waiting_minutes"] = minutes
+            s["_is_waiting"] = minutes >= WAIT_THRESHOLD_MINUTES
         result.append(s)
 
     return result

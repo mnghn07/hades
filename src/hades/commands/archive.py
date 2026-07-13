@@ -3,11 +3,10 @@ from pathlib import Path
 
 import typer
 from platformdirs import user_data_dir
-from rich.console import Console
 
 from hades.db import get_db
 
-console = Console()
+from hades.console import console
 
 ARCHIVE_ROOT = Path(user_data_dir("hades")) / "archive"
 

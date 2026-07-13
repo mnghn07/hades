@@ -3,12 +3,11 @@ from pathlib import Path
 from typing import Optional
 
 import typer
-from rich.console import Console
 
 from hades.db import get_db
 from hades.transcript import iter_raw_messages, parse_turn
 
-console = Console()
+from hades.console import console
 
 ROLE_LABELS = {"user": "YOU", "assistant": "AI", "tool": "TOOL"}
 

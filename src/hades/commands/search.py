@@ -1,8 +1,8 @@
+import json
 import sqlite3
 
 import typer
 from rich import box
-from rich.console import Console
 from rich.markup import escape
 from rich.table import Table
 import pendulum
@@ -10,7 +10,7 @@ import pendulum
 from hades.classify import classify_project
 from hades.db import get_db
 
-console = Console()
+from hades.console import console
 
 DEFAULT_LIMIT = 20
 
@@ -24,15 +24,19 @@ def cmd_search(
     tool: str | None = typer.Option(None, "--tool", "-t", help="Filter by tool: claude, codex, gemini, cowork"),
     limit: int = typer.Option(DEFAULT_LIMIT, "--limit", "-n", help="Max results to show"),
     show_archived: bool = typer.Option(False, "--show-archived", help="Include archived sessions"),
+    json_out: bool = typer.Option(False, "--json", help="Output as JSON"),
 ):
     db = get_db()
     if "sessions" not in db.table_names():
-        console.print("[yellow]No sessions indexed yet. Sessions will be indexed automatically.[/yellow]")
+        if json_out:
+            typer.echo("[]")
+        else:
+            console.print("[yellow]No sessions indexed yet. Sessions will be indexed automatically.[/yellow]")
         return
 
     sql = f"""
         SELECT
-            sessions.tool, sessions.project_path, sessions.title,
+            sessions.id, sessions.tool, sessions.project_path, sessions.title,
             sessions.last_active_at, sessions.status,
             snippet(sessions_fts, -1, '{_HL_OPEN}', '{_HL_CLOSE}', '…', 12) AS snippet
         FROM sessions_fts
@@ -51,7 +55,25 @@ def cmd_search(
 
     rows = _run_query(db, sql + filters, query, params)
     if not rows:
-        console.print("[dim]No matches found.[/dim]")
+        if json_out:
+            typer.echo("[]")
+        else:
+            console.print("[dim]No matches found.[/dim]")
+        return
+
+    if json_out:
+        typer.echo(json.dumps([
+            {
+                "id": session_id,
+                "tool": tool_name,
+                "project": project_path,
+                "title": title,
+                "last_active_at": last_active_at,
+                "status": status,
+                "snippet": snippet.replace("\n", " ").replace(_HL_OPEN, "").replace(_HL_CLOSE, ""),
+            }
+            for session_id, tool_name, project_path, title, last_active_at, status, snippet in rows
+        ], indent=2))
         return
 
     table = Table(show_header=True, header_style="bold", box=box.ROUNDED, expand=True)
@@ -68,7 +90,7 @@ def cmd_search(
         "ended": "[red]✕ ended[/red]",
     }
 
-    for tool_name, project_path, title, last_active_at, status, snippet in rows:
+    for _session_id, tool_name, project_path, title, last_active_at, status, snippet in rows:
         display_project, _ = classify_project(project_path)
         last_active = pendulum.parse(last_active_at).diff_for_humans()
         status_display = status_icons.get(status, status)

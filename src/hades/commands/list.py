@@ -1,8 +1,8 @@
+import json
 from datetime import datetime, timezone, timedelta
 
 import typer
 from rich import box
-from rich.console import Console
 from rich.markup import escape
 from rich.table import Table
 import pendulum
@@ -10,7 +10,7 @@ import pendulum
 from hades.classify import classify_project
 from hades.db import get_db
 
-console = Console()
+from hades.console import console
 
 DEFAULT_RECENCY_DAYS = 3
 STATUS_RANK = {"running": 2, "idle": 1, "ended": 0}
@@ -56,10 +56,14 @@ def cmd_list(
     minute: int = typer.Option(0, "--min", help="Show sessions active within the last N minutes"),
     show_all: bool = typer.Option(False, "--all", help="Show every session, ignoring recency"),
     show_archived: bool = typer.Option(False, "--show-archived", help="Include archived sessions"),
+    json_out: bool = typer.Option(False, "--json", help="Output as JSON"),
 ):
     db = get_db()
     if "sessions" not in db.table_names():
-        console.print("[yellow]No sessions indexed yet. Sessions will be indexed automatically.[/yellow]")
+        if json_out:
+            typer.echo("[]")
+        else:
+            console.print("[yellow]No sessions indexed yet. Sessions will be indexed automatically.[/yellow]")
         return
 
     query = "SELECT * FROM sessions ORDER BY last_active_at DESC"
@@ -84,7 +88,10 @@ def cmd_list(
         sessions = [s for s in sessions if _last_active(s) >= cutoff]
 
     if not sessions:
-        console.print("[dim]No sessions found.[/dim]")
+        if json_out:
+            typer.echo("[]")
+        else:
+            console.print("[dim]No sessions found.[/dim]")
         return
 
     human_sessions = []
@@ -97,6 +104,23 @@ def cmd_list(
 
     rows = human_sessions + _group_agent_sessions(agent_sessions)
     rows.sort(key=_last_active, reverse=True)
+
+    if json_out:
+        typer.echo(json.dumps([
+            {
+                "id": s.get("id"),
+                "tool": s["tool"],
+                "project": s["_display_project"],
+                "type": s["_session_type"],
+                "title": None if s["_session_type"] == "agent" else s["title"],
+                "session_count": s.get("_count", 1),
+                "last_active_at": s["last_active_at"],
+                "message_count": s["message_count"],
+                "status": s["status"],
+            }
+            for s in rows
+        ], indent=2))
+        return
 
     table = Table(show_header=True, header_style="bold", box=box.ROUNDED, expand=True)
     table.add_column("TOOL", style="cyan", width=10)
