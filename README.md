@@ -2,7 +2,7 @@
 
 > *Keeper of sessions, living and dead.*
 
-A CLI for viewing, searching, and managing your AI coding sessions across Claude Code, Codex CLI, Gemini CLI, and Cowork — all from one terminal.
+just AI Sessions manager
 
 [![PyPI](https://img.shields.io/pypi/v/hades-cli)](https://pypi.org/project/hades-cli/)
 [![Python](https://img.shields.io/pypi/pyversions/hades-cli)](https://pypi.org/project/hades-cli/)
