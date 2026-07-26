@@ -27,9 +27,10 @@ def main(
         from hades.console import console
         console.no_color = True
 
-    if ctx.invoked_subcommand == "hook":
+    if ctx.invoked_subcommand in ("hook", "config"):
         # Hook subcommands (install / event) must stay cheap: `event` fires on
         # every Stop/Notification and can't afford a full index refresh.
+        # Config subcommands don't touch the session index at all.
         return
     from hades.db import get_db
     from hades.indexer import refresh_index
@@ -137,6 +138,31 @@ def watch_cmd(
 ):
     from hades.commands.watch import cmd_watch
     cmd_watch(notify=notify)
+
+
+config_app = typer.Typer(help="Get/set persistent hades settings (e.g. wait_threshold_minutes).")
+app.add_typer(config_app, name="config")
+
+
+@config_app.command("list", help="Show all config keys and their current values.")
+def config_list_cmd():
+    from hades.commands.config import cmd_config_list
+    cmd_config_list()
+
+
+@config_app.command("get", help="Print the current value of a config key.")
+def config_get_cmd(key: str = typer.Argument(..., help="Config key, e.g. wait_threshold_minutes")):
+    from hades.commands.config import cmd_config_get
+    cmd_config_get(key)
+
+
+@config_app.command("set", help="Set a config key's value.")
+def config_set_cmd(
+    key: str = typer.Argument(..., help="Config key, e.g. wait_threshold_minutes"),
+    value: str = typer.Argument(..., help="New value"),
+):
+    from hades.commands.config import cmd_config_set
+    cmd_config_set(key, value)
 
 
 hook_app = typer.Typer(help="Claude Code hook integration for precise waiting-state detection.")

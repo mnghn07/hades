@@ -45,6 +45,7 @@ def refresh_index(db: sqlite_utils.Database) -> None:
                 "started_at": session.started_at.isoformat(),
                 "last_active_at": session.last_active_at.isoformat(),
                 "message_count": session.message_count,
+                "token_count": session.token_count,
                 "status": session.status,
                 "raw_path": path_str,
                 "title": session.title,

@@ -2,16 +2,29 @@
 
 A session is *waiting* when it's a human (non-agent) session, its status is
 running or idle, it was active within RECENCY_HOURS, and nothing has happened
-for at least WAIT_THRESHOLD_MINUTES.
+for at least the wait threshold (default 3 min; `hades config set
+wait_threshold_minutes N`, or HADES_WAIT_THRESHOLD_MINUTES for a one-off
+override).
 """
+import os
 from datetime import datetime, timezone, timedelta
 
 import sqlite_utils
 
 from hades.classify import classify_project
+from hades.config import get_config
 
-WAIT_THRESHOLD_MINUTES = 3
 RECENCY_HOURS = 24
+
+
+def wait_threshold_minutes() -> int:
+    raw = os.environ.get("HADES_WAIT_THRESHOLD_MINUTES")
+    if raw:
+        try:
+            return int(raw)
+        except ValueError:
+            pass
+    return get_config("wait_threshold_minutes")
 
 
 def recent_human_sessions(db: sqlite_utils.Database, now: datetime | None = None) -> list[dict]:
@@ -54,7 +67,7 @@ def recent_human_sessions(db: sqlite_utils.Database, now: datetime | None = None
             s["_is_waiting"] = True
         else:
             s["_waiting_minutes"] = minutes
-            s["_is_waiting"] = minutes >= WAIT_THRESHOLD_MINUTES
+            s["_is_waiting"] = minutes >= wait_threshold_minutes()
         result.append(s)
 
     return result

@@ -14,3 +14,4 @@ class Session:
     status: str  # "running" | "idle" | "ended"
     raw_path: Path
     title: str | None
+    token_count: int = 0

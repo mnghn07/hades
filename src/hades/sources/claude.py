@@ -47,6 +47,7 @@ class ClaudeSource(BaseSource):
             status="idle",
             raw_path=path,
             title=title,
+            token_count=_extract_token_count(assistant_msgs),
         )
 
     @classmethod
@@ -76,6 +77,20 @@ def _extract_cwd(messages: list[dict]) -> str | None:
 def _is_assistant(m: dict) -> bool:
     msg = m.get("message", {})
     return isinstance(msg, dict) and msg.get("role") == "assistant"
+
+
+def _extract_token_count(assistant_msgs: list[dict]) -> int:
+    """Sum input+output+cache tokens across each assistant turn's usage block."""
+    total = 0
+    for m in assistant_msgs:
+        usage = m.get("message", {}).get("usage")
+        if not isinstance(usage, dict):
+            continue
+        total += sum(
+            usage.get(key, 0) or 0
+            for key in ("input_tokens", "output_tokens", "cache_creation_input_tokens", "cache_read_input_tokens")
+        )
+    return total
 
 
 def _extract_title(user_msgs: list[dict]) -> str | None:
