@@ -15,3 +15,4 @@ class Session:
     raw_path: Path
     title: str | None
     token_count: int = 0
+    cost_usd: float = 0.0

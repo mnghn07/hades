@@ -7,7 +7,7 @@ from rich.markup import escape
 from rich.table import Table
 import pendulum
 
-from hades.commands.list import _format_tokens
+from hades.commands.list import _format_cost, _format_tokens
 from hades.db import get_db
 from hades.waiting import format_wait, waiting_sessions
 
@@ -53,6 +53,7 @@ def cmd_stats(
     total_sessions = len(sessions)
     total_messages = sum(s["message_count"] for s in sessions)
     total_tokens = sum(s.get("token_count") or 0 for s in sessions)
+    total_cost = sum(s.get("cost_usd") or 0 for s in sessions)
     status_counts = {status: 0 for status in STATUS_ORDER}
     for s in sessions:
         status_counts[s["status"]] = status_counts.get(s["status"], 0) + 1
@@ -60,11 +61,12 @@ def cmd_stats(
     by_tool: dict[str, dict] = {}
     for s in sessions:
         entry = by_tool.setdefault(
-            s["tool"], {"sessions": 0, "messages": 0, "tokens": 0, "last_active": _last_active(s)}
+            s["tool"], {"sessions": 0, "messages": 0, "tokens": 0, "cost_usd": 0.0, "last_active": _last_active(s)}
         )
         entry["sessions"] += 1
         entry["messages"] += s["message_count"]
         entry["tokens"] += s.get("token_count") or 0
+        entry["cost_usd"] += s.get("cost_usd") or 0
         entry["last_active"] = max(entry["last_active"], _last_active(s))
 
     waiting = waiting_sessions(db)
@@ -74,12 +76,14 @@ def cmd_stats(
             "total_sessions": total_sessions,
             "total_messages": total_messages,
             "total_tokens": total_tokens,
+            "total_cost_usd": round(total_cost, 4),
             "status_counts": status_counts,
             "by_tool": {
                 tool_name: {
                     "sessions": entry["sessions"],
                     "messages": entry["messages"],
                     "tokens": entry["tokens"],
+                    "cost_usd": round(entry["cost_usd"], 4),
                     "last_active_at": entry["last_active"].isoformat(),
                 }
                 for tool_name, entry in by_tool.items()
@@ -92,7 +96,8 @@ def cmd_stats(
     console.print(
         f"[bold]{total_sessions}[/bold] sessions, "
         f"[bold]{total_messages}[/bold] messages, "
-        f"[bold]{_format_tokens(total_tokens)}[/bold] tokens "
+        f"[bold]{_format_tokens(total_tokens)}[/bold] tokens, "
+        f"[bold]{_format_cost(total_cost)}[/bold] "
         f"([green]{status_counts.get('running', 0)} running[/green], "
         f"[dim]{status_counts.get('idle', 0)} idle[/dim], "
         f"[red]{status_counts.get('ended', 0)} ended[/red])\n"
@@ -103,6 +108,7 @@ def cmd_stats(
     table.add_column("SESSIONS", justify="right", width=10)
     table.add_column("MESSAGES", justify="right", width=10)
     table.add_column("TOKENS", justify="right", width=10)
+    table.add_column("COST", justify="right", width=10)
     table.add_column("LAST ACTIVE", style="yellow", width=14)
 
     for tool_name in sorted(by_tool, key=lambda t: by_tool[t]["sessions"], reverse=True):
@@ -110,7 +116,7 @@ def cmd_stats(
         last_active = pendulum.instance(entry["last_active"]).diff_for_humans()
         table.add_row(
             escape(tool_name), str(entry["sessions"]), str(entry["messages"]),
-            _format_tokens(entry["tokens"]), last_active,
+            _format_tokens(entry["tokens"]), _format_cost(entry["cost_usd"]), last_active,
         )
 
     console.print(table)

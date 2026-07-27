@@ -26,6 +26,12 @@ def _format_tokens(count: int) -> str:
     return str(count)
 
 
+def _format_cost(cost: float) -> str:
+    if cost <= 0:
+        return "-"
+    return f"${cost:.2f}"
+
+
 def _last_active(session: dict) -> datetime:
     dt = datetime.fromisoformat(session["last_active_at"])
     return dt if dt.tzinfo else dt.replace(tzinfo=timezone.utc)
@@ -46,12 +52,14 @@ def _group_agent_sessions(sessions: list[dict]) -> list[dict]:
                 "last_active_at": s["last_active_at"],
                 "message_count": s["message_count"],
                 "token_count": s.get("token_count") or 0,
+                "cost_usd": s.get("cost_usd") or 0,
                 "status": s["status"],
                 "_count": 1,
             }
             continue
         group["message_count"] += s["message_count"]
         group["token_count"] += s.get("token_count") or 0
+        group["cost_usd"] += s.get("cost_usd") or 0
         group["_count"] += 1
         if _last_active(s) > _last_active(group):
             group["last_active_at"] = s["last_active_at"]
@@ -129,6 +137,7 @@ def cmd_list(
                 "last_active_at": s["last_active_at"],
                 "message_count": s["message_count"],
                 "token_count": s.get("token_count") or 0,
+                "cost_usd": round(s.get("cost_usd") or 0, 4),
                 "status": s["status"],
             }
             for s in rows
@@ -143,6 +152,7 @@ def cmd_list(
     table.add_column("LAST ACTIVE", style="yellow", width=14)
     table.add_column("MSGS", justify="right", width=6)
     table.add_column("TOKENS", justify="right", width=8)
+    table.add_column("COST", justify="right", width=8)
     table.add_column("STATUS", width=12)
 
     status_icons = {
@@ -160,7 +170,8 @@ def cmd_list(
         status = status_icons.get(s["status"], s["status"])
         table.add_row(
             escape(s["tool"]), escape(s["_display_project"]), s["_session_type"], escape(title),
-            last_active, str(s["message_count"]), _format_tokens(s.get("token_count") or 0), status,
+            last_active, str(s["message_count"]), _format_tokens(s.get("token_count") or 0),
+            _format_cost(s.get("cost_usd") or 0), status,
         )
 
     console.print(table)

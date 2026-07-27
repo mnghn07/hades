@@ -33,6 +33,7 @@ def _ensure_schema(db: sqlite_utils.Database) -> None:
             "is_archived": int,
             "waiting_since": str,
             "token_count": int,
+            "cost_usd": float,
         }, pk="id")
         db["sessions"].create_index(["raw_path"], unique=True)
     else:
@@ -42,6 +43,7 @@ def _ensure_schema(db: sqlite_utils.Database) -> None:
             ("human_messages", str), ("assistant_messages", str),
             ("file_mtime", float), ("is_archived", int),
             ("waiting_since", str), ("token_count", int),
+            ("cost_usd", float),
         ]:
             if col not in existing_cols:
                 db["sessions"].add_column(col, col_type)
