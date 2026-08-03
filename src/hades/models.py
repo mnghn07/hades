@@ -6,7 +6,7 @@ from pathlib import Path
 @dataclass
 class Session:
     id: str
-    tool: str  # "claude" | "codex" | "gemini" | "cowork"
+    tool: str  # "claude" | "codex" | "gemini" | "cowork" | "cursor"
     project_path: str
     started_at: datetime
     last_active_at: datetime

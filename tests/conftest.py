@@ -40,3 +40,30 @@ def claude_session_file(tmp_path: Path) -> Path:
         for msg in lines:
             f.write(json.dumps(msg) + "\n")
     return session_file
+
+
+@pytest.fixture
+def cursor_session_file(tmp_path: Path) -> Path:
+    """A minimal but realistic Cursor CLI agent transcript."""
+    transcript_dir = tmp_path / "cursor_projects" / "Users-test-project" / "agent-transcripts" / "abc123"
+    transcript_dir.mkdir(parents=True)
+    session_file = transcript_dir / "abc123.jsonl"
+    lines = [
+        {
+            "role": "user",
+            "message": {"content": [{
+                "type": "text",
+                "text": "<timestamp>Thursday, Jul 30, 2026, 2:05 PM (UTC+7)</timestamp>\n"
+                        "<user_query>\nHelp me build a CLI tool\n</user_query>",
+            }]},
+        },
+        {
+            "role": "assistant",
+            "message": {"content": [{"type": "text", "text": "Sure, let's start with typer."}]},
+        },
+        {"type": "turn_ended", "status": "success"},
+    ]
+    with open(session_file, "w", encoding="utf-8") as f:
+        for msg in lines:
+            f.write(json.dumps(msg) + "\n")
+    return session_file

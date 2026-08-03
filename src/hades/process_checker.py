@@ -100,4 +100,7 @@ def _classify(name: str, cmdline: str) -> str | None:
             if basename == "gemini":
                 return "gemini"
 
+    # Cursor CLI: no confirmed process name/cmdline signature yet — cursor
+    # sessions stay idle/ended, never "running", until this is filled in.
+
     return None

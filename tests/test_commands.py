@@ -58,6 +58,7 @@ def stores(tmp_path: Path, monkeypatch: pytest.MonkeyPatch, db_path) -> Path:  #
     monkeypatch.setenv("HADES_CODEX_PATH", str(tmp_path / "codex"))
     monkeypatch.setenv("HADES_GEMINI_PATH", str(tmp_path / "missing"))
     monkeypatch.setenv("HADES_COWORK_PATH", str(tmp_path / "missing"))
+    monkeypatch.setenv("HADES_CURSOR_PATH", str(tmp_path / "missing"))
     monkeypatch.setenv("COLUMNS", "200")  # keep tables from truncating in assertions
     return tmp_path
 
@@ -66,7 +67,9 @@ def stores(tmp_path: Path, monkeypatch: pytest.MonkeyPatch, db_path) -> Path:  #
 def empty_stores(tmp_path: Path, monkeypatch: pytest.MonkeyPatch, db_path) -> None:  # pylint: disable=unused-argument
     """All sources point at a missing dir, isolating tests from the real ~/.claude."""
     missing = tmp_path / "missing"
-    for env_var in ("HADES_CLAUDE_PATH", "HADES_CODEX_PATH", "HADES_GEMINI_PATH", "HADES_COWORK_PATH"):
+    for env_var in (
+        "HADES_CLAUDE_PATH", "HADES_CODEX_PATH", "HADES_GEMINI_PATH", "HADES_COWORK_PATH", "HADES_CURSOR_PATH",
+    ):
         monkeypatch.setenv(env_var, str(missing))
 
 
