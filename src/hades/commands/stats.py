@@ -21,6 +21,20 @@ def _last_active(session: dict) -> datetime:
     return dt if dt.tzinfo else dt.replace(tzinfo=timezone.utc)
 
 
+def _aggregate_by_tool(sessions: list[dict]) -> dict[str, dict]:
+    by_tool: dict[str, dict] = {}
+    for s in sessions:
+        entry = by_tool.setdefault(
+            s["tool"], {"sessions": 0, "messages": 0, "tokens": 0, "cost_usd": 0.0, "last_active": _last_active(s)}
+        )
+        entry["sessions"] += 1
+        entry["messages"] += s["message_count"]
+        entry["tokens"] += s.get("token_count") or 0
+        entry["cost_usd"] += s.get("cost_usd") or 0
+        entry["last_active"] = max(entry["last_active"], _last_active(s))
+    return by_tool
+
+
 def cmd_stats(
     day: int = typer.Option(0, "--day", help="Only include sessions active within the last N days"),
     hour: int = typer.Option(0, "--hour", help="Only include sessions active within the last N hours"),
@@ -58,16 +72,7 @@ def cmd_stats(
     for s in sessions:
         status_counts[s["status"]] = status_counts.get(s["status"], 0) + 1
 
-    by_tool: dict[str, dict] = {}
-    for s in sessions:
-        entry = by_tool.setdefault(
-            s["tool"], {"sessions": 0, "messages": 0, "tokens": 0, "cost_usd": 0.0, "last_active": _last_active(s)}
-        )
-        entry["sessions"] += 1
-        entry["messages"] += s["message_count"]
-        entry["tokens"] += s.get("token_count") or 0
-        entry["cost_usd"] += s.get("cost_usd") or 0
-        entry["last_active"] = max(entry["last_active"], _last_active(s))
+    by_tool = _aggregate_by_tool(sessions)
 
     waiting = waiting_sessions(db)
 
