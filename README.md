@@ -82,6 +82,9 @@ codex     ml-pipeline          human     3d ago          31   ✕ ended
 | Codex CLI | `~/.codex/sessions/` | JSONL |
 | Gemini CLI | `~/.gemini/tmp/` | JSON |
 | Cowork | `~/Library/Application Support/Claude/local-agent-mode-sessions/` | JSON |
+| Cursor CLI agent | `~/.cursor/projects/` | JSONL |
+
+Cursor's row is the CLI agent's own transcripts, not the Cursor IDE's chat history (that lives in a separate VSCode-style SQLite store and isn't read). "Running" status isn't detected for Cursor sessions yet — they always show idle/ended.
 
 Paths are auto-discovered — no config needed. Override any with env vars:
 
