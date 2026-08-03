@@ -8,9 +8,9 @@ from hades.hooks import install_hooks
 
 
 @pytest.fixture
-def hook_session(db_path):
+def hook_session(db_path):  # pylint: disable=unused-argument  # fixture used for its setup side effect
     db = get_db()
-    db["sessions"].insert({
+    db["sessions"].insert({  # pylint: disable=no-member  # sqlite_utils stubs return Table | View
         "id": "claude:abc123",
         "tool": "claude",
         "project_path": "/tmp/project",
@@ -51,7 +51,7 @@ def test_second_stop_does_not_overwrite_first_timestamp(hook_session, monkeypatc
     assert first == second
 
 
-def test_unknown_session_id_does_not_raise(db_path, monkeypatch):
+def test_unknown_session_id_does_not_raise(db_path, monkeypatch):  # pylint: disable=unused-argument  # fixture used for its setup side effect
     get_db()  # ensure schema exists
     _send_event(monkeypatch, "Stop", session_id="does-not-exist")
 
@@ -61,4 +61,4 @@ def test_install_hooks_idempotent(tmp_path, monkeypatch):
     first = install_hooks()
     assert set(first) == {"Stop", "Notification", "UserPromptSubmit"}
     second = install_hooks()
-    assert second == []
+    assert not second

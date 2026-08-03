@@ -74,25 +74,28 @@ def cmd_watch(
                     footer_spinner.update(text=f"[dim]next check in {remaining}s[/dim]")
                     live.update(Group(_render_table(sessions, cursor), footer_spinner, Text.from_markup(LEGEND)))
 
-                    key = _read_key(0.1)
-                    if key == "j" and sessions:
-                        cursor = min(cursor + 1, len(sessions) - 1)
-                    elif key == "k" and sessions:
-                        cursor = max(cursor - 1, 0)
-                    elif key == "d" and sessions:
-                        try:
-                            archive_session_by_id(db, sessions[cursor]["id"])
-                        except (ValueError, FileNotFoundError):
-                            pass
-                        else:
-                            sessions.pop(cursor)
-                            cursor = min(cursor, len(sessions) - 1) if sessions else 0
+                    cursor = _handle_key(_read_key(0.1), db, sessions, cursor)
 
                     if time.monotonic() - tick_started >= 1:
                         tick_started = time.monotonic()
                         remaining -= 1
     except KeyboardInterrupt:
         console.print("\n[dim]Stopped.[/dim]")
+
+
+def _handle_key(key: str | None, db, sessions: list[dict], cursor: int) -> int:
+    if key == "j" and sessions:
+        return min(cursor + 1, len(sessions) - 1)
+    if key == "k" and sessions:
+        return max(cursor - 1, 0)
+    if key == "d" and sessions:
+        try:
+            archive_session_by_id(db, sessions[cursor]["id"])
+        except (ValueError, FileNotFoundError):
+            return cursor
+        sessions.pop(cursor)
+        return min(cursor, len(sessions) - 1) if sessions else 0
+    return cursor
 
 
 @contextmanager

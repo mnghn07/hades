@@ -54,10 +54,10 @@ def cmd_archive(
         dest_path, already_archived = archive_session_by_id(db, session_id)
     except ValueError:
         console.print(f"[red]Session not found:[/red] {session_id}")
-        raise typer.Exit(1)
+        raise typer.Exit(1) from None
     except FileNotFoundError as e:
         console.print(f"[red]Session file no longer exists:[/red] {e}")
-        raise typer.Exit(1)
+        raise typer.Exit(1) from e
 
     if already_archived:
         console.print(f"[yellow]Already archived:[/yellow] {session_id}")

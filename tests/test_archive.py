@@ -25,7 +25,7 @@ def test_archive_moves_file_and_marks_row(tmp_path: Path):
     db = get_db()
     session_file = tmp_path / "sess.jsonl"
     session_file.write_text("{}")
-    db["sessions"].insert({
+    db["sessions"].insert({  # pylint: disable=no-member  # sqlite_utils stubs return Table | View
         "id": "claude:sess", "tool": "claude", "raw_path": str(session_file), "is_archived": 0,
     }, pk="id")
 
@@ -34,7 +34,7 @@ def test_archive_moves_file_and_marks_row(tmp_path: Path):
     assert not already_archived
     assert dest_path.exists()
     assert not session_file.exists()
-    row = db["sessions"].get("claude:sess")
+    row = db["sessions"].get("claude:sess")  # pylint: disable=no-member  # sqlite_utils stubs return Table | View
     assert row["is_archived"] == 1
     assert row["raw_path"] == str(dest_path)
 
@@ -44,7 +44,7 @@ def test_archive_already_archived_is_a_noop(tmp_path: Path):
     db = get_db()
     dest_file = tmp_path / "already.jsonl"
     dest_file.write_text("{}")
-    db["sessions"].insert({
+    db["sessions"].insert({  # pylint: disable=no-member  # sqlite_utils stubs return Table | View
         "id": "claude:sess", "tool": "claude", "raw_path": str(dest_file), "is_archived": 1,
     }, pk="id")
 
@@ -58,7 +58,7 @@ def test_archive_already_archived_is_a_noop(tmp_path: Path):
 def test_archive_missing_source_file_raises(tmp_path: Path):
     db = get_db()
     missing = tmp_path / "gone.jsonl"
-    db["sessions"].insert({
+    db["sessions"].insert({  # pylint: disable=no-member  # sqlite_utils stubs return Table | View
         "id": "claude:sess", "tool": "claude", "raw_path": str(missing), "is_archived": 0,
     }, pk="id")
 

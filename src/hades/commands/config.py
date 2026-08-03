@@ -15,7 +15,7 @@ def cmd_config_get(key: str):
         console.print(str(get_config(key)))
     except KeyError:
         console.print(f"[red]Unknown config key:[/red] {key} (known: {', '.join(DEFAULTS)})")
-        raise typer.Exit(1)
+        raise typer.Exit(1) from None
 
 
 def cmd_config_set(key: str, value: str):
@@ -23,8 +23,8 @@ def cmd_config_set(key: str, value: str):
         coerced = set_config(key, value)
     except KeyError:
         console.print(f"[red]Unknown config key:[/red] {key} (known: {', '.join(DEFAULTS)})")
-        raise typer.Exit(1)
+        raise typer.Exit(1) from None
     except ValueError:
         console.print(f"[red]Invalid value for {key}:[/red] {value!r}")
-        raise typer.Exit(1)
+        raise typer.Exit(1) from None
     console.print(f"[green]{key}[/green] = {coerced}")

@@ -68,6 +68,45 @@ def _group_agent_sessions(sessions: list[dict]) -> list[dict]:
     return list(groups.values())
 
 
+def _filter_sessions(
+    sessions: list[dict], *, tool: str | None, active: bool, show_archived: bool,
+    day: int, hour: int, minute: int, show_all: bool,
+) -> list[dict]:
+    if not show_archived:
+        sessions = [s for s in sessions if not s["is_archived"]]
+    if tool:
+        sessions = [s for s in sessions if s["tool"] == tool]
+    if active:
+        sessions = [s for s in sessions if s["status"] in ("running", "idle")]
+    if show_all:
+        return sessions
+    if day or hour or minute:
+        recency = timedelta(days=day, hours=hour, minutes=minute)
+    else:
+        recency = timedelta(days=DEFAULT_RECENCY_DAYS)
+    cutoff = datetime.now(timezone.utc) - recency
+    return [s for s in sessions if _last_active(s) >= cutoff]
+
+
+def _rows_to_json(rows: list[dict]) -> str:
+    return json.dumps([
+        {
+            "id": s.get("id"),
+            "tool": s["tool"],
+            "project": s["_display_project"],
+            "type": s["_session_type"],
+            "title": None if s["_session_type"] == "agent" else s["title"],
+            "session_count": s.get("_count", 1),
+            "last_active_at": s["last_active_at"],
+            "message_count": s["message_count"],
+            "token_count": s.get("token_count") or 0,
+            "cost_usd": round(s.get("cost_usd") or 0, 4),
+            "status": s["status"],
+        }
+        for s in rows
+    ], indent=2)
+
+
 def cmd_list(
     tool: str | None = typer.Option(None, "--tool", "-t", help="Filter by tool: claude, codex, gemini, cowork"),
     active: bool = typer.Option(False, "--active", help="Show only running/idle sessions"),
@@ -92,20 +131,10 @@ def cmd_list(
 
     sessions = [dict(zip(col_names, row)) for row in rows]
 
-    if not show_archived:
-        sessions = [s for s in sessions if not s["is_archived"]]
-
-    if tool:
-        sessions = [s for s in sessions if s["tool"] == tool]
-    if active:
-        sessions = [s for s in sessions if s["status"] in ("running", "idle")]
-    if not show_all:
-        if day or hour or minute:
-            recency = timedelta(days=day, hours=hour, minutes=minute)
-        else:
-            recency = timedelta(days=DEFAULT_RECENCY_DAYS)
-        cutoff = datetime.now(timezone.utc) - recency
-        sessions = [s for s in sessions if _last_active(s) >= cutoff]
+    sessions = _filter_sessions(
+        sessions, tool=tool, active=active, show_archived=show_archived,
+        day=day, hour=hour, minute=minute, show_all=show_all,
+    )
 
     if not sessions:
         if json_out:
@@ -126,22 +155,7 @@ def cmd_list(
     rows.sort(key=_last_active, reverse=True)
 
     if json_out:
-        typer.echo(json.dumps([
-            {
-                "id": s.get("id"),
-                "tool": s["tool"],
-                "project": s["_display_project"],
-                "type": s["_session_type"],
-                "title": None if s["_session_type"] == "agent" else s["title"],
-                "session_count": s.get("_count", 1),
-                "last_active_at": s["last_active_at"],
-                "message_count": s["message_count"],
-                "token_count": s.get("token_count") or 0,
-                "cost_usd": round(s.get("cost_usd") or 0, 4),
-                "status": s["status"],
-            }
-            for s in rows
-        ], indent=2))
+        typer.echo(_rows_to_json(rows))
         return
 
     table = Table(show_header=True, header_style="bold", box=box.ROUNDED, expand=True)
