@@ -1,5 +1,6 @@
 from hades.commands.list import _format_cost, _format_tokens
-from hades.sources.claude import _extract_cost, _extract_token_count
+from hades.sources.common import extract_cost as _extract_cost
+from hades.sources.common import extract_token_count as _extract_token_count
 
 
 def test_extract_token_count_sums_usage_across_turns():

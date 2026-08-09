@@ -43,6 +43,38 @@ def claude_session_file(tmp_path: Path) -> Path:
 
 
 @pytest.fixture
+def cowork_session_file(tmp_path: Path) -> Path:
+    """A minimal but realistic Cowork session: metadata json + audit.jsonl."""
+    session_root = tmp_path / "cowork_sessions"
+    session_dir = session_root / "local_test123"
+    session_dir.mkdir(parents=True)
+    metadata = {"sessionId": "local_test123", "title": "Build a CLI tool", "cwd": str(session_dir / "outputs")}
+    (session_root / "local_test123.json").write_text(json.dumps(metadata), encoding="utf-8")
+
+    audit_file = session_dir / "audit.jsonl"
+    lines = [
+        {
+            "type": "user", "message": {"role": "user", "content": "Help me build a CLI tool"},
+            "_audit_timestamp": "2026-07-03T10:00:00.000Z",
+        },
+        {
+            "type": "assistant",
+            "message": {
+                "role": "assistant", "model": "claude-sonnet-5",
+                "content": [{"type": "text", "text": "Sure, let's start with typer."}],
+                "usage": {"input_tokens": 10, "output_tokens": 20},
+            },
+            "_audit_timestamp": "2026-07-03T10:00:05.000Z",
+        },
+        {"type": "system", "subtype": "hook_started"},
+    ]
+    with open(audit_file, "w", encoding="utf-8") as f:
+        for msg in lines:
+            f.write(json.dumps(msg) + "\n")
+    return audit_file
+
+
+@pytest.fixture
 def cursor_session_file(tmp_path: Path) -> Path:
     """A minimal but realistic Cursor CLI agent transcript."""
     transcript_dir = tmp_path / "cursor_projects" / "Users-test-project" / "agent-transcripts" / "abc123"

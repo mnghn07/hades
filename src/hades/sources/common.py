@@ -3,6 +3,8 @@ import json
 from datetime import datetime
 from pathlib import Path
 
+from hades import pricing
+
 
 def read_jsonl_dicts(path: Path) -> list[dict]:
     """Read a JSONL file into a list of dicts, skipping non-dict entries."""
@@ -42,3 +44,39 @@ def parse_timestamps(messages: list[dict], keys: tuple[str, ...] = ("timestamp",
             except Exception:
                 pass
     return timestamps
+
+
+def extract_token_count(assistant_msgs: list[dict]) -> int:
+    """Sum input+output+cache tokens across each assistant turn's usage block.
+
+    Shared by any source whose transcript format nests a Claude-shaped
+    message.usage block (Claude Code and Cowork both do).
+    """
+    total = 0
+    for m in assistant_msgs:
+        usage = m.get("message", {}).get("usage")
+        if not isinstance(usage, dict):
+            continue
+        total += sum(
+            usage.get(key, 0) or 0
+            for key in ("input_tokens", "output_tokens", "cache_creation_input_tokens", "cache_read_input_tokens")
+        )
+    return total
+
+
+def extract_cost(assistant_msgs: list[dict]) -> float:
+    """Sum per-turn USD cost, priced by that turn's own model."""
+    total = 0.0
+    for m in assistant_msgs:
+        message = m.get("message", {})
+        usage = message.get("usage")
+        if not isinstance(usage, dict):
+            continue
+        total += pricing.estimate_cost(
+            message.get("model", ""),
+            usage.get("input_tokens", 0) or 0,
+            usage.get("output_tokens", 0) or 0,
+            usage.get("cache_creation_input_tokens", 0) or 0,
+            usage.get("cache_read_input_tokens", 0) or 0,
+        )
+    return total

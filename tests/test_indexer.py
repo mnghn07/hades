@@ -5,6 +5,7 @@ import pytest
 from hades.db import get_db
 from hades.indexer import refresh_index
 from hades.sources.claude import ClaudeSource
+from hades.sources.cowork import CoworkSource
 from hades.sources.cursor import CursorSource
 
 
@@ -93,6 +94,34 @@ def test_refresh_index_indexes_cursor_session(cursor_session_file, monkeypatch):
     assert project_path == "/Users/test/project"
     assert message_count == 2
     assert title == "Help me build a CLI tool"
+
+    fts_row = db.execute(
+        "SELECT human_messages, assistant_messages FROM sessions_fts WHERE id = ?", [session_id]
+    ).fetchone()
+    assert fts_row is not None
+    assert "CLI tool" in fts_row[0]
+    assert "typer" in fts_row[1]
+
+
+@pytest.mark.usefixtures("db_path")
+def test_refresh_index_indexes_cowork_session(cowork_session_file, monkeypatch):
+    monkeypatch.setenv("HADES_COWORK_PATH", str(cowork_session_file.parent.parent))
+    monkeypatch.setattr("hades.indexer.ALL_SOURCES", [CoworkSource])
+    db = get_db()
+
+    refresh_index(db)
+
+    rows = list(db.execute(
+        "SELECT id, tool, project_path, message_count, title, token_count, cost_usd FROM sessions"
+    ).fetchall())
+    assert len(rows) == 1
+    session_id, tool, project_path, message_count, title, token_count, cost_usd = rows[0]
+    assert tool == "cowork"
+    assert project_path == "Build a CLI tool"
+    assert title == "Build a CLI tool"
+    assert message_count == 2
+    assert token_count == 30
+    assert cost_usd > 0
 
     fts_row = db.execute(
         "SELECT human_messages, assistant_messages FROM sessions_fts WHERE id = ?", [session_id]
