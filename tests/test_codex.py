@@ -40,8 +40,10 @@ def test_extract_token_count_no_events_returns_zero():
 def test_extract_cost_unrecognized_openai_model_is_zero():
     records = [
         {"type": "world_state", "payload": {"state": {"collaboration_mode": {"model": "gpt-5.6-terra"}}}},
-        {"type": "event_msg", "payload": {"type": "token_count",
-                                           "info": {"total_token_usage": {"input_tokens": 1000, "output_tokens": 100}}}},
+        {"type": "event_msg", "payload": {
+            "type": "token_count",
+            "info": {"total_token_usage": {"input_tokens": 1000, "output_tokens": 100}},
+        }},
     ]
     assert _extract_cost(records) == 0.0
 

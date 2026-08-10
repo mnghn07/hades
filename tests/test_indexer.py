@@ -2,6 +2,7 @@ from pathlib import Path
 
 import pytest
 
+from hades.config import set_tool_enabled
 from hades.db import get_db
 from hades.indexer import refresh_index
 from hades.sources.claude import ClaudeSource
@@ -101,6 +102,30 @@ def test_refresh_index_indexes_cursor_session(cursor_session_file, monkeypatch):
     assert fts_row is not None
     assert "CLI tool" in fts_row[0]
     assert "typer" in fts_row[1]
+
+
+@pytest.mark.usefixtures("db_path")
+def test_refresh_index_skips_disabled_tool(claude_session_file, monkeypatch):
+    _point_at_claude_root(monkeypatch, claude_session_file)
+    set_tool_enabled("claude", False)
+    db = get_db()
+
+    refresh_index(db)
+
+    assert db.execute("SELECT COUNT(*) FROM sessions").fetchone()[0] == 0
+
+
+@pytest.mark.usefixtures("db_path")
+def test_refresh_index_disabling_a_tool_does_not_delete_its_existing_rows(claude_session_file, monkeypatch):
+    _point_at_claude_root(monkeypatch, claude_session_file)
+    db = get_db()
+    refresh_index(db)
+    assert db.execute("SELECT COUNT(*) FROM sessions").fetchone()[0] == 1
+
+    set_tool_enabled("claude", False)
+    refresh_index(db)
+
+    assert db.execute("SELECT COUNT(*) FROM sessions").fetchone()[0] == 1
 
 
 @pytest.mark.usefixtures("db_path")

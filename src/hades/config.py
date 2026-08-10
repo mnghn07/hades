@@ -14,6 +14,10 @@ DEFAULTS = {
     "wait_threshold_minutes": 3,
 }
 
+# Which sources get scanned/indexed. Only Claude is on out of the box;
+# `hades tools enable <name>` opts the rest in.
+DEFAULT_ENABLED_TOOLS = ["claude"]
+
 
 def load_config() -> dict:
     if not CONFIG_PATH.exists():
@@ -41,3 +45,21 @@ def set_config(key: str, raw_value: str):
     CONFIG_PATH.parent.mkdir(parents=True, exist_ok=True)
     CONFIG_PATH.write_text(json.dumps(data, indent=2))
     return coerced
+
+
+def get_enabled_tools() -> set[str]:
+    return set(load_config().get("enabled_tools", DEFAULT_ENABLED_TOOLS))
+
+
+def set_tool_enabled(tool: str, enabled: bool) -> None:
+    """Not routed through set_config: that coerces via type(default)(raw_value),
+    which would mangle a list (list("codex") -> ['c','o','d','e','x'])."""
+    data = load_config()
+    tools = set(data.get("enabled_tools", DEFAULT_ENABLED_TOOLS))
+    if enabled:
+        tools.add(tool)
+    else:
+        tools.discard(tool)
+    data["enabled_tools"] = sorted(tools)
+    CONFIG_PATH.parent.mkdir(parents=True, exist_ok=True)
+    CONFIG_PATH.write_text(json.dumps(data, indent=2))

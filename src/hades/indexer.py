@@ -1,14 +1,21 @@
 import sqlite_utils
 
+from hades.config import get_enabled_tools
 from hades.sources import ALL_SOURCES
 
 
 def refresh_index(db: sqlite_utils.Database) -> None:
-    """Scan all sources, upsert changed/new sessions, remove stale rows."""
+    """Scan enabled sources, upsert changed/new sessions, remove stale rows."""
+    enabled_tools = get_enabled_tools()
     indexed_paths: set[str] = set()
     discovered_tools: set[str] = set()
 
     for source_cls in ALL_SOURCES:
+        if source_cls.name not in enabled_tools:
+            # Disabled tool: don't scan it, and don't touch its existing index
+            # rows either — same treatment as a source whose store isn't
+            # reachable right now (see _remove_stale below).
+            continue
         if source_cls.discover_root() is None:
             # Source store not found (unmounted disk, bad env override, tool not
             # installed). Skip it entirely — including stale removal — so a

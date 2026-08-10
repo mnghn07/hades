@@ -27,10 +27,10 @@ def main(
         from hades.console import console
         console.no_color = True
 
-    if ctx.invoked_subcommand in ("hook", "config"):
+    if ctx.invoked_subcommand in ("hook", "config", "setup", "tools"):
         # Hook subcommands (install / event) must stay cheap: `event` fires on
         # every Stop/Notification and can't afford a full index refresh.
-        # Config subcommands don't touch the session index at all.
+        # Config/setup/tools subcommands don't touch the session index at all.
         return
     from hades.db import get_db
     from hades.indexer import refresh_index
@@ -138,6 +138,28 @@ def watch_cmd(
 ):
     from hades.commands.watch import cmd_watch
     cmd_watch(notify=notify)
+
+
+@app.command("setup", help="Show which sources are detected on this machine and enabled for scanning.")
+def setup_cmd():
+    from hades.commands.tools import cmd_setup
+    cmd_setup()
+
+
+tools_app = typer.Typer(help="Enable/disable which sources hades scans.")
+app.add_typer(tools_app, name="tools")
+
+
+@tools_app.command("enable", help="Enable a source (e.g. codex, gemini, cowork, cursor, openclaw, antigravity).")
+def tools_enable_cmd(tool: str = typer.Argument(..., help="Tool name, e.g. codex")):
+    from hades.commands.tools import cmd_tools_enable
+    cmd_tools_enable(tool)
+
+
+@tools_app.command("disable", help="Disable a source so it's no longer scanned/indexed.")
+def tools_disable_cmd(tool: str = typer.Argument(..., help="Tool name, e.g. codex")):
+    from hades.commands.tools import cmd_tools_disable
+    cmd_tools_disable(tool)
 
 
 config_app = typer.Typer(help="Get/set persistent hades settings (e.g. wait_threshold_minutes).")

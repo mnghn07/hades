@@ -217,3 +217,34 @@ def test_no_color_flag_strips_ansi_codes():
     # may already suppress color in `colored` too — this just guards against
     # --no-color *adding* escape codes, which would be the real regression.
     assert "\x1b[" not in colored.output
+
+
+@pytest.fixture
+def isolated_tools_config(tmp_path, monkeypatch):
+    """A genuinely fresh config (no db_path involved) to exercise setup/tools
+    against real default behavior, not the all-tools-enabled test default."""
+    monkeypatch.setattr("hades.config.CONFIG_PATH", tmp_path / "config.json")
+    monkeypatch.setenv("COLUMNS", "200")
+
+
+def test_setup_lists_every_source_with_detected_and_enabled_columns(isolated_tools_config):  # pylint: disable=unused-argument
+    result = runner.invoke(app, ["setup"])
+    assert result.exit_code == 0, result.output
+    assert "claude" in result.output
+    assert "codex" in result.output
+    assert "antigravity" in result.output
+
+
+def test_tools_enable_then_setup_shows_it_on(isolated_tools_config):  # pylint: disable=unused-argument
+    enable_result = runner.invoke(app, ["tools", "enable", "codex"])
+    assert enable_result.exit_code == 0, enable_result.output
+
+    setup_result = runner.invoke(app, ["setup"])
+    codex_line = next(line for line in setup_result.output.splitlines() if "codex" in line)
+    assert "on" in codex_line
+
+
+def test_tools_disable_unknown_tool_errors(isolated_tools_config):  # pylint: disable=unused-argument
+    result = runner.invoke(app, ["tools", "disable", "not-a-real-tool"])
+    assert result.exit_code != 0
+    assert "Unknown tool" in result.output

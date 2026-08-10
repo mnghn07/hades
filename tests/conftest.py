@@ -6,9 +6,18 @@ import pytest
 
 @pytest.fixture
 def db_path(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> Path:
-    """Point hades.db at an isolated per-test SQLite file."""
+    """Point hades.db at an isolated per-test SQLite file, and hades.config at an
+    isolated config with every source pre-enabled (tests predate per-tool
+    enable/disable and assume multi-tool scanning; see test_tools.py for the
+    enable/disable mechanics themselves, which use their own isolated config)."""
     path = tmp_path / "index.db"
     monkeypatch.setattr("hades.db.DB_PATH", path)
+
+    from hades.sources import ALL_SOURCES
+    config_path = tmp_path / "config.json"
+    config_path.write_text(json.dumps({"enabled_tools": [s.name for s in ALL_SOURCES]}))
+    monkeypatch.setattr("hades.config.CONFIG_PATH", config_path)
+
     return path
 
 

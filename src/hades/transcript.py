@@ -33,41 +33,42 @@ def parse_turn(msg: dict, full: bool) -> tuple[str, str] | None:
     """Normalize one raw message dict into (role, text), or None if not displayable."""
     outer_type = msg.get("type", "")
 
+    # Tool call results (only surfaced with full)
+    if full and outer_type in ("tool_result", "tool_use"):
+        return "tool", f"<TOOL {msg.get('name', outer_type)}>"
+
+    role, content = _extract_role_and_content(msg, outer_type)
+    return _normalize_turn(role, content, full)
+
+
+def _extract_role_and_content(msg: dict, outer_type: str) -> tuple[str, object]:
+    """Locate the (role, content) pair across every source's own message shape."""
     # Claude Code format: outer type="user"/"assistant" with message.role inside
     if outer_type in ("user", "assistant") and "message" in msg:
         inner = msg["message"]
-        role = inner.get("role", outer_type)
-        content = inner.get("content", "")
-        return _normalize_turn(role, content, full)
+        return inner.get("role", outer_type), inner.get("content", "")
 
     # OpenClaw format: outer type="message" wrapping an inner message.role
     if outer_type == "message" and "message" in msg:
         inner = msg["message"]
-        content = inner.get("content", "")
-        return _normalize_turn(inner.get("role", ""), content, full)
+        return inner.get("role", ""), inner.get("content", "")
 
     # Codex format: outer type="response_item" wrapping payload.role
     if outer_type == "response_item" and isinstance(msg.get("payload"), dict):
         payload = msg["payload"]
         if payload.get("type") == "message":
-            return _normalize_turn(payload.get("role", ""), payload.get("content", ""), full)
+            return payload.get("role", ""), payload.get("content", "")
 
-    # Simpler formats (Codex, Gemini, Cowork): role at top level
+    # Simpler formats (Codex, Gemini, Cowork, Antigravity): role at top level
     role = msg.get("role", "")
     if role in ("user", "assistant", "model"):
-        content = msg.get("content") or msg.get("parts", "")
-        return _normalize_turn("user" if role == "user" else "assistant", content, full)
+        return role, (msg.get("content") or msg.get("parts", ""))
 
     # Cowork variant: type-based turns without an inner message
     if outer_type in ("human", "assistant") and "message" not in msg:
-        content = msg.get("content", "")
-        return _normalize_turn("user" if outer_type == "human" else "assistant", content, full)
+        return ("user" if outer_type == "human" else "assistant"), msg.get("content", "")
 
-    # Tool call results (only surfaced with full)
-    if full and outer_type in ("tool_result", "tool_use"):
-        return "tool", f"<TOOL {msg.get('name', outer_type)}>"
-
-    return None
+    return "", ""
 
 
 def _normalize_turn(role: str, content, full: bool) -> tuple[str, str] | None:
