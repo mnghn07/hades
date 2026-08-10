@@ -11,6 +11,15 @@ def iter_raw_messages(path: Path) -> Iterator[dict]:
             for item in ijson.items(f, "", multiple_values=True):
                 if isinstance(item, dict):
                     yield item
+    elif path.suffix == ".db":
+        # Antigravity: the real transcript is undocumented protobuf inside this
+        # SQLite file. history.jsonl is the only plain-JSON record of it — user
+        # prompts only, no replies. See sources/antigravity.py for the full story.
+        from hades.sources.antigravity import history_entries_for
+        for entry in history_entries_for(path):
+            text = entry.get("display", "")
+            if text:
+                yield {"role": "user", "content": text}
     else:
         with open(path, encoding="utf-8") as f:
             data = json.load(f)
@@ -30,6 +39,18 @@ def parse_turn(msg: dict, full: bool) -> tuple[str, str] | None:
         role = inner.get("role", outer_type)
         content = inner.get("content", "")
         return _normalize_turn(role, content, full)
+
+    # OpenClaw format: outer type="message" wrapping an inner message.role
+    if outer_type == "message" and "message" in msg:
+        inner = msg["message"]
+        content = inner.get("content", "")
+        return _normalize_turn(inner.get("role", ""), content, full)
+
+    # Codex format: outer type="response_item" wrapping payload.role
+    if outer_type == "response_item" and isinstance(msg.get("payload"), dict):
+        payload = msg["payload"]
+        if payload.get("type") == "message":
+            return _normalize_turn(payload.get("role", ""), payload.get("content", ""), full)
 
     # Simpler formats (Codex, Gemini, Cowork): role at top level
     role = msg.get("role", "")
@@ -70,7 +91,7 @@ def _extract_text(content, full: bool) -> str:
             if not isinstance(block, dict):
                 continue
             btype = block.get("type", "")
-            if btype == "text":
+            if btype in ("text", "input_text", "output_text"):
                 text = block.get("text", "").strip()
                 if text:
                     parts.append(text)

@@ -83,8 +83,18 @@ codex     ml-pipeline          human     3d ago          31   ✕ ended
 | Gemini CLI | `~/.gemini/tmp/` | JSON |
 | Cowork | `~/Library/Application Support/Claude/local-agent-mode-sessions/` | JSON |
 | Cursor CLI agent | `~/.cursor/projects/` | JSONL |
+| OpenClaw | `~/.openclaw/agents/` | JSONL |
+| Antigravity | `~/.gemini/antigravity-cli/` | JSONL + SQLite |
 
 Cursor's row is the CLI agent's own transcripts, not the Cursor IDE's chat history (that lives in a separate VSCode-style SQLite store and isn't read). "Running" status isn't detected for Cursor sessions yet — they always show idle/ended.
+
+OpenClaw sessions live at `~/.openclaw/agents/<agent-name>/sessions/<id>.jsonl`, one file per session across all configured agents. Token/cost use OpenClaw's own per-turn `usage` block, priced via hades' own table (OpenClaw's own embedded cost figure was observed always 0). "Running" status isn't detected yet — sessions always show idle/ended.
+
+Codex's token/cost come from its own cumulative `token_count` events (not summed per-turn like the others). Cost is priced through hades' own table, which only covers Claude models — Codex's own (OpenAI) models always price at $0 today, same as any other unrecognized model.
+
+Antigravity is a partial source: its real transcript store (`conversations/<id>.db`) is undocumented protobuf packed into SQLite blob columns, with no shipped schema — unreadable without reverse engineering it. `history.jsonl`, a flat prompt log Antigravity also writes, is the only plain-JSON record available, so this source has your own prompts but never Antigravity's replies, and no token/cost data. "Running" status isn't detected yet.
+
+Gemini CLI's source (`gemini.py`) predates a Gemini CLI format change and is currently non-functional — it looks for `chats/*.json` but the real files are `chats/*.jsonl`, written as an event-sourced append log rather than a flat `{messages: [...]}` document. Not yet fixed (see ROADMAP.md).
 
 Paths are auto-discovered — no config needed. Override any with env vars:
 

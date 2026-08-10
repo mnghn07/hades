@@ -51,14 +51,19 @@ def stores(tmp_path: Path, monkeypatch: pytest.MonkeyPatch, db_path) -> Path:  #
     with open(codex_dir / "rollout-x.jsonl", "w", encoding="utf-8") as f:
         f.write(json.dumps({"timestamp": _iso(now - timedelta(hours=3)), "type": "session_meta",
                             "payload": {"cwd": "/Users/me/projects/ml-pipeline"}}) + "\n")
-        f.write(json.dumps({"timestamp": _iso(now - timedelta(hours=3)),
-                            "role": "user", "content": "train the model"}) + "\n")
+        f.write(json.dumps({
+            "timestamp": _iso(now - timedelta(hours=3)), "type": "response_item",
+            "payload": {"type": "message", "role": "user",
+                        "content": [{"type": "input_text", "text": "train the model"}]},
+        }) + "\n")
 
     monkeypatch.setenv("HADES_CLAUDE_PATH", str(tmp_path / "claude"))
     monkeypatch.setenv("HADES_CODEX_PATH", str(tmp_path / "codex"))
     monkeypatch.setenv("HADES_GEMINI_PATH", str(tmp_path / "missing"))
     monkeypatch.setenv("HADES_COWORK_PATH", str(tmp_path / "missing"))
     monkeypatch.setenv("HADES_CURSOR_PATH", str(tmp_path / "missing"))
+    monkeypatch.setenv("HADES_OPENCLAW_PATH", str(tmp_path / "missing"))
+    monkeypatch.setenv("HADES_ANTIGRAVITY_PATH", str(tmp_path / "missing"))
     monkeypatch.setenv("COLUMNS", "200")  # keep tables from truncating in assertions
     return tmp_path
 
@@ -69,6 +74,7 @@ def empty_stores(tmp_path: Path, monkeypatch: pytest.MonkeyPatch, db_path) -> No
     missing = tmp_path / "missing"
     for env_var in (
         "HADES_CLAUDE_PATH", "HADES_CODEX_PATH", "HADES_GEMINI_PATH", "HADES_COWORK_PATH", "HADES_CURSOR_PATH",
+        "HADES_OPENCLAW_PATH", "HADES_ANTIGRAVITY_PATH",
     ):
         monkeypatch.setenv(env_var, str(missing))
 
