@@ -1,5 +1,6 @@
 from hades.commands.list import _format_cost, _format_tokens
 from hades.sources.common import extract_cost as _extract_cost
+from hades.sources.common import extract_token_breakdown
 from hades.sources.common import extract_token_count as _extract_token_count
 
 
@@ -35,6 +36,25 @@ def test_extract_cost_prices_by_each_turns_own_model():
 
 def test_extract_cost_ignores_missing_usage():
     assert _extract_cost([{"message": {}}, {"message": {"usage": None}}]) == 0.0
+
+
+def test_extract_token_breakdown_sums_each_category_across_turns():
+    assistant_msgs = [
+        {"message": {"usage": {"input_tokens": 10, "output_tokens": 20}}},
+        {"message": {"usage": {
+            "input_tokens": 5, "output_tokens": 15,
+            "cache_creation_input_tokens": 100, "cache_read_input_tokens": 50,
+        }}},
+    ]
+    assert extract_token_breakdown(assistant_msgs) == {
+        "input": 15, "output": 35, "cache_write": 100, "cache_read": 50,
+    }
+
+
+def test_extract_token_breakdown_ignores_missing_usage():
+    assert extract_token_breakdown([{"message": {}}, {"message": {"usage": None}}]) == {
+        "input": 0, "output": 0, "cache_write": 0, "cache_read": 0,
+    }
 
 
 def test_format_cost():

@@ -11,6 +11,8 @@ class OpenclawSource(BaseSource):
     name = "openclaw"
     env_var = "HADES_OPENCLAW_PATH"
     default_paths = [Path("~/.openclaw/agents")]
+    # v2: backfills the four token-category columns (input/output/cache-write/cache-read).
+    PARSER_VERSION = 2
 
     @classmethod
     def list_files(cls) -> list[Path]:
@@ -33,6 +35,7 @@ class OpenclawSource(BaseSource):
         started_at = min(timestamps) if timestamps else datetime.now(timezone.utc)
         last_active_at = max(timestamps) if timestamps else started_at
         title = _extract_title(user_msgs)
+        breakdown = _extract_token_breakdown(assistant_msgs)
 
         return Session(
             id=f"openclaw:{path.stem}",
@@ -46,6 +49,10 @@ class OpenclawSource(BaseSource):
             title=title,
             token_count=_extract_token_count(assistant_msgs),
             cost_usd=_extract_cost(assistant_msgs),
+            input_tokens=breakdown["input"],
+            output_tokens=breakdown["output"],
+            cache_write_tokens=breakdown["cache_write"],
+            cache_read_tokens=breakdown["cache_read"],
         )
 
     @classmethod
@@ -104,6 +111,20 @@ def _extract_token_count(assistant_msgs: list[dict]) -> int:
             continue
         total += sum(usage.get(key, 0) or 0 for key in ("input", "output", "cacheRead", "cacheWrite"))
     return total
+
+
+def _extract_token_breakdown(assistant_msgs: list[dict]) -> dict[str, int]:
+    """Same four categories as common.extract_token_breakdown, OpenClaw's field names."""
+    totals = {"input": 0, "output": 0, "cache_write": 0, "cache_read": 0}
+    for r in assistant_msgs:
+        usage = r["message"].get("usage")
+        if not isinstance(usage, dict):
+            continue
+        totals["input"] += usage.get("input", 0) or 0
+        totals["output"] += usage.get("output", 0) or 0
+        totals["cache_write"] += usage.get("cacheWrite", 0) or 0
+        totals["cache_read"] += usage.get("cacheRead", 0) or 0
+    return totals
 
 
 def _extract_cost(assistant_msgs: list[dict]) -> float:

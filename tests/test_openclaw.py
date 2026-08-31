@@ -1,6 +1,8 @@
 import json
 
-from hades.sources.openclaw import OpenclawSource, _extract_cost, _extract_title, _extract_token_count, _msg_text
+from hades.sources.openclaw import (
+    OpenclawSource, _extract_cost, _extract_title, _extract_token_breakdown, _extract_token_count, _msg_text,
+)
 
 
 def test_msg_text_extracts_from_content_list():
@@ -22,6 +24,14 @@ def test_extract_token_count_sums_usage_components():
         {"message": {"usage": {"input": 1, "output": 1}}},
     ]
     assert _extract_token_count(assistant_msgs) == (2 + 3 + 100 + 5) + (1 + 1)
+
+
+def test_extract_token_breakdown_sums_each_category():
+    assistant_msgs = [
+        {"message": {"usage": {"input": 2, "output": 3, "cacheRead": 100, "cacheWrite": 5}}},
+        {"message": {"usage": {"input": 1, "output": 1}}},
+    ]
+    assert _extract_token_breakdown(assistant_msgs) == {"input": 3, "output": 4, "cache_write": 5, "cache_read": 100}
 
 
 def test_extract_cost_ignores_unreliable_embedded_zero_and_prices_from_model():
@@ -74,6 +84,10 @@ def test_parse_file_end_to_end(tmp_path):
     assert session.title == "hello there"
     assert session.token_count == 20
     assert session.cost_usd > 0
+    assert session.input_tokens == 10
+    assert session.output_tokens == 10
+    assert session.cache_write_tokens == 0
+    assert session.cache_read_tokens == 0
 
 
 def test_list_files_finds_session_jsonl(tmp_path):

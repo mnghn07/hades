@@ -1,0 +1,389 @@
+<!doctype html>
+<html>
+<head>
+<meta charset="utf-8">
+<title>hades serve</title>
+<style>
+  :root {
+    /* dataviz skill reference palette, dark mode, validated:
+       node validate_palette.js "#3987e5,#d95926,#199e70,#c98500"
+       --mode dark --surface "#1a1a19" → all PASS, worst adjacent ΔE 8.4 CVD / 19.8 normal-vision. */
+    --page: #0d0d0d; --surface: #1a1a19; --border: #2c2c2a;
+    --ink: #ffffff; --ink-2: #c3c2b7; --ink-muted: #898781;
+    --accent: #3987e5;
+    --c-input: #3987e5; --c-output: #d95926; --c-cache-write: #199e70; --c-cache-read: #c98500;
+  }
+  * { box-sizing: border-box; }
+  body { margin: 0; background: var(--page); color: var(--ink); font: 14px/1.4 -apple-system, system-ui, sans-serif; }
+  header { padding: 20px 28px; border-bottom: 1px solid var(--border); display: flex; align-items: baseline; gap: 12px; }
+  header h1 { margin: 0; font-size: 18px; }
+  header .crumb { color: var(--ink-muted); font-size: 13px; }
+  header .crumb a { color: var(--accent); text-decoration: none; cursor: pointer; }
+  header .crumb a:hover { text-decoration: underline; }
+  main { padding: 20px 28px 60px; max-width: 1080px; margin: 0 auto; }
+
+  .filterbar { display: flex; align-items: center; gap: 8px; margin-bottom: 20px; background: var(--surface);
+    border: 1px solid var(--border); border-radius: 8px; padding: 10px 14px; flex-wrap: wrap; }
+  .filterbar input[type="date"] { background: var(--page); color: var(--ink); border: 1px solid var(--border);
+    border-radius: 6px; padding: 6px 8px; font: inherit; color-scheme: dark; }
+  .filterbar .to-label { color: var(--ink-muted); font-size: 13px; }
+  .filterbar button { background: var(--page); color: var(--ink); border: 1px solid var(--border); border-radius: 6px;
+    padding: 6px 12px; font-size: 13px; cursor: pointer; }
+  .filterbar button:hover { border-color: var(--ink-muted); }
+  .filterbar button.primary { background: var(--accent); border-color: var(--accent); color: #06111f; font-weight: 600; }
+  .filterbar .count { color: var(--ink-muted); font-size: 13px; margin-left: auto; }
+
+  .cards { display: flex; gap: 12px; margin-bottom: 24px; }
+  .card { background: var(--surface); border: 1px solid var(--border); border-radius: 8px; padding: 14px 18px; flex: 1; }
+  .card .label { color: var(--ink-muted); font-size: 12px; }
+  .card .value { font-size: 24px; font-weight: 600; margin-top: 2px; }
+  .card .spark { margin-top: 8px; display: block; }
+
+  .panel { background: var(--surface); border: 1px solid var(--border); border-radius: 8px; padding: 20px; margin-bottom: 20px; }
+  .panel h2 { margin: 0 0 4px; font-size: 15px; }
+  .panel .sub { color: var(--ink-muted); font-size: 12px; margin-bottom: 4px; }
+  .panel .alltime { color: var(--ink-2); font-size: 12px; margin-bottom: 16px; }
+  .panel .alltime b { color: var(--ink); font-weight: 600; }
+  .panel .empty { color: var(--ink-muted); font-size: 13px; padding: 8px 0; }
+
+  .legend { display: flex; gap: 16px; margin: 14px 0 0; font-size: 12px; color: var(--ink-2); flex-wrap: wrap; }
+  .legend span { display: inline-flex; align-items: center; gap: 6px; }
+  .swatch { width: 10px; height: 10px; border-radius: 2px; display: inline-block; }
+
+  .bar-row { display: flex; align-items: center; gap: 12px; margin-bottom: 14px; padding: 6px; border-radius: 6px; }
+  .bar-row.linkable { cursor: pointer; }
+  .bar-row.linkable:hover { background: rgba(255,255,255,.05); }
+  .bar-row .name { width: 110px; font-weight: 500; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .bar-row .cost { width: 68px; text-align: right; color: var(--ink-2); font-variant-numeric: tabular-nums; }
+  .stack { flex: 1; height: 20px; display: flex; }
+  .seg { height: 100%; position: relative; display: flex; align-items: center; justify-content: center; }
+  .seg:first-child { border-top-left-radius: 4px; border-bottom-left-radius: 4px; }
+  .seg:last-child { border-top-right-radius: 4px; border-bottom-right-radius: 4px; }
+  .seg + .seg { margin-left: 2px; }
+  .seg .inline-label { font-size: 11px; font-weight: 600; color: #06111f; white-space: nowrap; }
+  .seg[data-fits="0"] .inline-label { display: none; }
+  .chev { color: var(--ink-muted); }
+
+  .mix-bar { height: 32px; display: flex; border-radius: 6px; overflow: hidden; }
+  .mix-bar .seg { border-radius: 0 !important; }
+  .mix-bar .seg .inline-label { font-size: 12px; }
+
+  .ts-scroll { overflow-x: auto; }
+  .ts-plot { position: relative; height: 200px; margin-left: 46px; }
+  .ts-gridline { position: absolute; left: 0; right: 0; border-top: 1px solid var(--border); }
+  .ts-gridline .tick { position: absolute; left: -46px; top: -7px; width: 40px; text-align: right;
+    font-size: 11px; color: var(--ink-muted); font-variant-numeric: tabular-nums; }
+  .ts-bars { position: absolute; inset: 0; display: flex; align-items: flex-end; gap: 3px; min-width: 100%; }
+  .ts-day { flex: 1 0 14px; height: 100%; display: flex; align-items: flex-end; justify-content: center; gap: 2px; cursor: pointer; }
+  .ts-day:hover { background: rgba(255,255,255,.05); }
+  .ts-day .grp-bar { width: 5px; border-radius: 2px 2px 0 0; align-self: flex-end; }
+  .ts-day .stack-col { width: 10px; display: flex; flex-direction: column-reverse; }
+  .ts-day .stack-col .seg2 { width: 100%; }
+  .ts-day .stack-col .seg2:last-child { border-radius: 2px 2px 0 0; }
+  .ts-axis { display: flex; margin-left: 46px; margin-top: 6px; gap: 3px; }
+  .ts-axis .lbl { flex: 1 0 14px; text-align: center; font-size: 11px; color: var(--ink-muted); }
+
+  #tooltip { position: fixed; pointer-events: none; background: #05070d; border: 1px solid var(--border);
+    border-radius: 6px; padding: 8px 10px; font-size: 12px; display: none; z-index: 200; box-shadow: 0 6px 20px rgba(0,0,0,.5); min-width: 140px; }
+  #tooltip .date { color: var(--ink-2); font-size: 11px; margin-bottom: 4px; }
+  #tooltip .row { display: flex; gap: 10px; justify-content: space-between; }
+  #tooltip .row .v { font-weight: 700; color: var(--ink); }
+  #tooltip .row .k { color: var(--ink-2); }
+  #tooltip .key { width: 8px; height: 8px; border-radius: 2px; display: inline-block; margin-right: 6px; }
+</style>
+</head>
+<body>
+
+<header>
+  <h1>hades serve</h1>
+  <span class="crumb" id="crumb"></span>
+</header>
+
+<main>
+  <div class="filterbar" id="filterbar"></div>
+  <div id="app"></div>
+</main>
+
+<div id="tooltip"></div>
+
+<script>
+const CATS = ["input", "output", "cache_write", "cache_read"];
+const CAT_LABEL = { input: "input", output: "output", cache_write: "cache write", cache_read: "cache read" };
+const CAT_COLOR = { input: "var(--c-input)", output: "var(--c-output)", cache_write: "var(--c-cache-write)", cache_read: "var(--c-cache-read)" };
+
+const fmt = n => n >= 1e6 ? (n / 1e6).toFixed(1) + "M" : n >= 1000 ? (n / 1000).toFixed(0) + "k" : String(Math.round(n));
+const sum = (rows, cat) => rows.reduce((a, r) => a + r[cat], 0);
+const grandTotal = rows => CATS.reduce((a, c) => a + sum(rows, c), 0);
+const totalCost = rows => rows.reduce((a, r) => a + r.cost_usd, 0);
+const isoDate = d => d.toISOString().slice(0, 10);
+const dateLabel = d => d.toLocaleDateString("en-US", { month: "short", day: "numeric" });
+
+function dayList(fromIso, toIso) {
+  const out = [];
+  const d = new Date(fromIso + "T00:00:00");
+  const end = new Date(toIso + "T00:00:00");
+  while (d <= end) { out.push(new Date(d)); d.setDate(d.getDate() + 1); }
+  return out;
+}
+
+// ---------- data (fetched from the JSON endpoints) ----------
+let ROWS = [];              // [{tool, project, input, output, cache_write, cache_read, cost_usd}]
+let DAILY_CAT = {};         // {cat: number[]} aligned to state.days
+let DAILY_COST_CAT = {};    // {cat: number[]} aligned to state.days
+let days = [];              // Date[] for the current range
+
+async function loadData(fromIso, toIso) {
+  const [summaryRes, dailyRes] = await Promise.all([
+    fetch(`/api/summary?from=${fromIso}&to=${toIso}`),
+    fetch(`/api/daily?from=${fromIso}&to=${toIso}`),
+  ]);
+  const summary = await summaryRes.json();
+  const daily = await dailyRes.json();
+
+  ROWS = summary.rows || [];
+
+  days = dayList(fromIso, toIso);
+  const byDate = {};
+  (daily.days || []).forEach(d => byDate[d.date] = d);
+  DAILY_CAT = {}; DAILY_COST_CAT = {};
+  CATS.forEach(c => { DAILY_CAT[c] = []; DAILY_COST_CAT[c] = []; });
+  days.forEach(d => {
+    const iso = isoDate(d);
+    const row = byDate[iso];
+    CATS.forEach(c => {
+      DAILY_CAT[c].push(row ? row[c] : 0);
+      DAILY_COST_CAT[c].push(row ? row[c + "_cost"] : 0);
+    });
+  });
+}
+
+// ---------- tooltip ----------
+const tip = document.getElementById("tooltip");
+function positionTip(evt) { tip.style.left = (evt.clientX + 14) + "px"; tip.style.top = (evt.clientY + 14) + "px"; }
+function showTip(evt, catKey, value) {
+  tip.innerHTML = `<div class="row"><span class="k"><span class="key" style="background:${CAT_COLOR[catKey]}"></span>${CAT_LABEL[catKey]}</span><span class="v">${fmt(value)}</span></div>`;
+  tip.style.display = "block"; positionTip(evt);
+}
+function showDayTip(evt, dateStr, entries) {
+  const rows = entries.map(([k, v, isDollar]) =>
+    `<div class="row"><span class="k"><span class="key" style="background:${CAT_COLOR[k]}"></span>${CAT_LABEL[k]}</span><span class="v">${isDollar ? "$" + v.toFixed(2) : fmt(v)}</span></div>`).join("");
+  tip.innerHTML = `<div class="date">${dateStr}</div>${rows}`;
+  tip.style.display = "block"; positionTip(evt);
+}
+function hideTip() { tip.style.display = "none"; }
+
+// ---------- aggregate stacked bar (by-tool / by-project rows + category mix) ----------
+function stackedBar(rows, maxTotal, opts) {
+  opts = opts || {};
+  const t = grandTotal(rows);
+  const widthPct = c => maxTotal ? (sum(rows, c) / maxTotal) * 100 : 0;
+  const segs = CATS.map(c => {
+    const v = sum(rows, c);
+    const pct = t ? (v / t) * 100 : 0;
+    const fits = opts.mix ? pct >= 8 : pct >= 18;
+    const label = opts.mix ? `${pct.toFixed(0)}%` : fmt(v);
+    return `<div class="seg" data-fits="${fits ? 1 : 0}" style="width:${widthPct(c)}%;background:${CAT_COLOR[c]}"
+      onmousemove="showTip(event,'${c}',${v})" onmouseleave="hideTip()">
+      <span class="inline-label">${label}</span>
+    </div>`;
+  }).join("");
+  return `<div class="${opts.mix ? "mix-bar" : "stack"}">${segs}</div>`;
+}
+function legendFor(keys) {
+  return `<div class="legend">${keys.map(c => `<span><span class="swatch" style="background:${CAT_COLOR[c]}"></span>${CAT_LABEL[c]}</span>`).join("")}</div>`;
+}
+
+// ---------- stat tile sparkline (whole selected range, in accent) ----------
+function sparkline() {
+  const slice = CATS.reduce((acc, c, i) => acc.map((v, d) => v + DAILY_COST_CAT[c][d]), days.map(() => 0));
+  const max = Math.max(...slice, 0.01);
+  const pts = slice.map((v, i) => [i * (120 / Math.max(1, slice.length - 1)), 28 - (v / max) * 24]);
+  const path = pts.map((p, i) => (i === 0 ? "M" : "L") + p[0].toFixed(1) + "," + p[1].toFixed(1)).join(" ");
+  return `<svg class="spark" width="120" height="30" viewBox="0 0 120 30">
+    <path d="${path}" fill="none" stroke="var(--accent)" stroke-width="2"/>
+  </svg>`;
+}
+function summaryCards(rows) {
+  const t = totalCost(rows), tok = grandTotal(rows), cacheRead = sum(rows, "cache_read");
+  return `<div class="cards">
+    <div class="card"><div class="label">total cost</div><div class="value">$${t.toFixed(2)}</div>${sparkline()}</div>
+    <div class="card"><div class="label">total tokens</div><div class="value">${fmt(tok)}</div></div>
+    <div class="card"><div class="label">cache-read share</div><div class="value">${tok ? ((cacheRead / tok) * 100).toFixed(0) : 0}%</div></div>
+  </div>`;
+}
+
+// ---------- time-series column chart: grouped (tokens) or stacked (cost) ----------
+function niceStep(max) {
+  const rough = max / 4 || 1;
+  const mag = Math.pow(10, Math.floor(Math.log10(rough)));
+  const norm = rough / mag;
+  const mult = norm < 1.5 ? 1 : norm < 3 ? 2 : norm < 7 ? 5 : 10;
+  return mult * mag;
+}
+function timeSeriesChart(keys, dailySource, opts) {
+  opts = opts || {};
+  const n = days.length;
+  if (n === 0) return `<div class="empty">No data in this range.</div>`;
+  let maxVal;
+  if (opts.stacked) {
+    maxVal = 1;
+    for (let i = 0; i < n; i++) maxVal = Math.max(maxVal, keys.reduce((a, k) => a + dailySource[k][i], 0));
+  } else {
+    maxVal = Math.max(1, ...keys.flatMap(k => dailySource[k]));
+  }
+  const step = niceStep(maxVal);
+  const yMax = Math.ceil(maxVal / step) * step;
+  const ticks = [];
+  for (let v = 0; v <= yMax; v += step) ticks.push(v);
+
+  const gridlines = ticks.map(v => `<div class="ts-gridline" style="bottom:${(v / yMax) * 100}%">
+    <span class="tick">${opts.dollar ? "$" + v.toFixed(v < 1 ? 2 : 0) : fmt(v)}</span></div>`).join("");
+
+  const dayCols = [];
+  for (let i = 0; i < n; i++) {
+    const entries = keys.map(k => [k, dailySource[k][i], !!opts.dollar]);
+    const tipCall = `showDayTip(event,'${dateLabel(days[i])}',${JSON.stringify(entries)})`;
+    let inner;
+    if (opts.stacked) {
+      const dayTotal = keys.reduce((a, k) => a + dailySource[k][i], 0);
+      inner = `<div class="stack-col" style="height:${(dayTotal / yMax) * 100}%">
+        ${keys.map(k => `<div class="seg2" style="height:${(dailySource[k][i] / (dayTotal || 1)) * 100}%;background:${CAT_COLOR[k]}"></div>`).join("")}
+      </div>`;
+    } else {
+      inner = keys.map(k => `<div class="grp-bar" style="height:${(dailySource[k][i] / yMax) * 100}%;background:${CAT_COLOR[k]}"></div>`).join("");
+    }
+    dayCols.push(`<div class="ts-day" onmousemove="${tipCall}" onmouseleave="hideTip()">${inner}</div>`);
+  }
+
+  const step2 = Math.max(1, Math.ceil(n / 15));
+  const axisLbls = days.map((d, i) => `<span class="lbl">${i % step2 === 0 ? dateLabel(d) : ""}</span>`);
+
+  return `<div class="ts-scroll"><div style="min-width:${Math.max(600, n * 16)}px">
+    <div class="ts-plot">${gridlines}<div class="ts-bars">${dayCols.join("")}</div></div>
+    <div class="ts-axis">${axisLbls.join("")}</div>
+  </div></div>`;
+}
+
+function tokenUsagePanel() {
+  return `<div class="panel">
+    <h2>Token usage over time</h2>
+    <div class="alltime">Selected range: <b>${fmt(sum2(DAILY_CAT.input))}</b> input · <b>${fmt(sum2(DAILY_CAT.output))}</b> output</div>
+    ${timeSeriesChart(["input", "output"], DAILY_CAT)}
+    ${legendFor(["input", "output"])}
+  </div>`;
+}
+function costOverTimePanel() {
+  const total = CATS.reduce((a, c) => a + sum2(DAILY_COST_CAT[c]), 0);
+  return `<div class="panel">
+    <h2>Cost over time</h2>
+    <div class="alltime">Selected range: <b>$${total.toFixed(2)}</b></div>
+    ${timeSeriesChart(CATS, DAILY_COST_CAT, { stacked: true, dollar: true })}
+    ${legendFor(CATS)}
+  </div>`;
+}
+function sum2(arr) { return arr.reduce((a, b) => a + b, 0); }
+
+function groupedBarPanel(title, sub, groups, rowsByGroup, hrefPrefix) {
+  if (groups.length === 0) return `<div class="panel"><h2>${title}</h2><div class="empty">No data in this range.</div></div>`;
+  const maxTotal = Math.max(...groups.map(g => grandTotal(rowsByGroup(g))), 1);
+  const rows = groups.map(g => {
+    const rs = rowsByGroup(g);
+    const href = `${hrefPrefix}${encodeURIComponent(g)}`;
+    return `<div class="bar-row linkable" onclick="location.hash='${href}'">
+      <div class="name">${g}</div>
+      ${stackedBar(rs, maxTotal)}
+      <div class="cost">$${totalCost(rs).toFixed(2)}</div>
+      <span class="chev">›</span>
+    </div>`;
+  }).join("");
+  return `<div class="panel"><h2>${title}</h2><div class="sub" style="margin-bottom:16px">${sub}</div>${rows}${legendFor(CATS)}</div>`;
+}
+
+// ---------- pages ----------
+function pageOverview() {
+  const tools = [...new Set(ROWS.map(r => r.tool))];
+  const projects = [...new Set(ROWS.map(r => r.project))];
+  return `${summaryCards(ROWS)}
+    ${tokenUsagePanel()}
+    ${costOverTimePanel()}
+    ${groupedBarPanel("By tool", "Click a tool for its full breakdown by project.",
+        tools, t => ROWS.filter(r => r.tool === t), "#/tool/")}
+    ${groupedBarPanel("By project", "Click a project for its full breakdown by tool.",
+        projects, p => ROWS.filter(r => r.project === p), "#/project/")}`;
+}
+function detailPage(axisKey, axisValue, otherKey, otherHrefPrefix, otherLabel) {
+  const rows = ROWS.filter(r => r[axisKey] === axisValue);
+  const others = [...new Set(rows.map(r => r[otherKey]))];
+  return `${summaryCards(rows)}
+    <div class="panel">
+      <h2>Category mix — ${axisValue}</h2>
+      <div class="sub" style="margin-bottom:16px">Share of the four token categories over the selected range.</div>
+      ${stackedBar(rows, grandTotal(rows) || 1, { mix: true })}
+      ${legendFor(CATS)}
+    </div>
+    ${groupedBarPanel(`${axisValue} by ${otherLabel}`, `Same categories, sliced by ${otherLabel}.`,
+        others, o => rows.filter(r => r[otherKey] === o), otherHrefPrefix)}`;
+}
+
+// ---------- router ----------
+let state = { from: null, to: null };
+
+async function route() {
+  const hash = location.hash.replace(/^#/, "") || "/";
+  const parts = hash.split("/").filter(Boolean).map(decodeURIComponent);
+  const crumb = document.getElementById("crumb");
+  const app = document.getElementById("app");
+
+  await loadData(state.from, state.to);
+
+  if (parts.length === 0) {
+    crumb.innerHTML = "";
+    app.innerHTML = pageOverview();
+  } else if (parts[0] === "tool" && parts[1]) {
+    crumb.innerHTML = `<a onclick="location.hash='#/'">overview</a> / tool / ${parts[1]}`;
+    app.innerHTML = detailPage("tool", parts[1], "project", "#/project/", "project");
+  } else if (parts[0] === "project" && parts[1]) {
+    crumb.innerHTML = `<a onclick="location.hash='#/'">overview</a> / project / ${parts[1]}`;
+    app.innerHTML = detailPage("project", parts[1], "tool", "#/tool/", "tool");
+  } else {
+    crumb.innerHTML = "";
+    app.innerHTML = `<p>Unknown page.</p>`;
+  }
+}
+window.addEventListener("hashchange", route);
+
+// ---------- date-range filter: From/To + Apply/Reset ----------
+function defaultRange() {
+  const to = new Date();
+  const from = new Date(to); from.setDate(from.getDate() - 29);
+  return { from: isoDate(from), to: isoDate(to) };
+}
+function renderFilterbar() {
+  document.getElementById("filterbar").innerHTML = `
+    <input type="date" id="from-input" value="${state.from}">
+    <span class="to-label">to</span>
+    <input type="date" id="to-input" value="${state.to}">
+    <button class="primary" onclick="applyRange()">Apply</button>
+    <button onclick="resetRange()">Reset</button>
+    <span class="count">${dayList(state.from, state.to).length} days selected</span>`;
+}
+function applyRange() {
+  const from = document.getElementById("from-input").value;
+  const to = document.getElementById("to-input").value;
+  state.from = from <= to ? from : to;
+  state.to = from <= to ? to : from;
+  renderFilterbar();
+  route();
+}
+function resetRange() {
+  state = defaultRange();
+  renderFilterbar();
+  route();
+}
+
+state = defaultRange();
+renderFilterbar();
+route();
+</script>
+</body>
+</html>

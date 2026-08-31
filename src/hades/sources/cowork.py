@@ -3,7 +3,9 @@ from pathlib import Path
 
 from hades.models import Session
 from .base import BaseSource
-from .common import extract_cost, extract_token_count, parse_timestamps, read_json_document, read_jsonl_dicts
+from .common import (
+    extract_cost, extract_token_breakdown, extract_token_count, parse_timestamps, read_json_document, read_jsonl_dicts,
+)
 
 
 class CoworkSource(BaseSource):
@@ -13,6 +15,8 @@ class CoworkSource(BaseSource):
         Path("~/Library/Application Support/Claude/local-agent-mode-sessions"),
         Path("~/.config/claude/local-agent-mode-sessions"),
     ]
+    # v2: backfills the four token-category columns (input/output/cache-write/cache-read).
+    PARSER_VERSION = 2
 
     @classmethod
     def list_files(cls) -> list[Path]:
@@ -40,6 +44,7 @@ class CoworkSource(BaseSource):
         # not a real host project path. The session's own title is the closest
         # thing to a project label, so it's used for both fields below.
         title = _read_metadata(path).get("title") or _extract_title(user_msgs)
+        breakdown = extract_token_breakdown(assistant_msgs)
 
         return Session(
             id=f"cowork:{path.parent.name}",
@@ -53,6 +58,10 @@ class CoworkSource(BaseSource):
             title=title,
             token_count=extract_token_count(assistant_msgs),
             cost_usd=extract_cost(assistant_msgs),
+            input_tokens=breakdown["input"],
+            output_tokens=breakdown["output"],
+            cache_write_tokens=breakdown["cache_write"],
+            cache_read_tokens=breakdown["cache_read"],
         )
 
     @classmethod

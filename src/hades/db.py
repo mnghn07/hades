@@ -34,6 +34,11 @@ def _ensure_schema(db: sqlite_utils.Database) -> None:
             "waiting_since": str,
             "token_count": int,
             "cost_usd": float,
+            "parser_version": int,
+            "input_tokens": int,
+            "output_tokens": int,
+            "cache_write_tokens": int,
+            "cache_read_tokens": int,
         }, pk="id")
         db["sessions"].create_index(["raw_path"], unique=True)
     else:
@@ -43,7 +48,9 @@ def _ensure_schema(db: sqlite_utils.Database) -> None:
             ("human_messages", str), ("assistant_messages", str),
             ("file_mtime", float), ("is_archived", int),
             ("waiting_since", str), ("token_count", int),
-            ("cost_usd", float),
+            ("cost_usd", float), ("parser_version", int),
+            ("input_tokens", int), ("output_tokens", int),
+            ("cache_write_tokens", int), ("cache_read_tokens", int),
         ]:
             if col not in existing_cols:
                 db["sessions"].add_column(col, col_type)

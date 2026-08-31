@@ -8,6 +8,9 @@ class BaseSource(ABC):
     name: str
     default_paths: list[Path]
     env_var: str
+    # Bump when parse_file/extract_messages logic changes so refresh_index
+    # reparses already-indexed files even though their mtime is unchanged.
+    PARSER_VERSION: int = 1
 
     @classmethod
     def discover_root(cls) -> Path | None:

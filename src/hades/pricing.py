@@ -25,6 +25,33 @@ _PRICES: dict[str, tuple[float, float]] = {
 
 CACHE_WRITE_MULTIPLIER = 1.25
 CACHE_READ_MULTIPLIER = 0.1
+OUTPUT_MULTIPLIER = 5.0  # every priced model above uses a flat 5x input:output ratio
+
+
+def category_cost_shares(
+    input_tokens: int, output_tokens: int, cache_write_tokens: int, cache_read_tokens: int, total_cost_usd: float
+) -> dict[str, float]:
+    """Split an already-known total cost across the four token categories.
+
+    Sessions store one total cost_usd (priced per-turn by that turn's own
+    model), not a per-category dollar amount — so this apportions the total
+    by each category's token count weighted by its price multiplier relative
+    to input, rather than re-pricing per model (which would need per-day
+    model attribution we don't store).
+    # ponytail: approximation, not exact per-model pricing. Upgrade path: store
+    # per-category cost at index time (like cost_usd) if per-model precision
+    # ever matters here.
+    """
+    weighted = {
+        "input": input_tokens,
+        "output": output_tokens * OUTPUT_MULTIPLIER,
+        "cache_write": cache_write_tokens * CACHE_WRITE_MULTIPLIER,
+        "cache_read": cache_read_tokens * CACHE_READ_MULTIPLIER,
+    }
+    total_weight = sum(weighted.values())
+    if total_weight <= 0:
+        return dict.fromkeys(weighted, 0.0)
+    return {k: total_cost_usd * w / total_weight for k, w in weighted.items()}
 
 
 def price_per_mtok(model: str) -> tuple[float, float] | None:

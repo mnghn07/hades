@@ -140,6 +140,23 @@ def watch_cmd(
     cmd_watch(notify=notify)
 
 
+@app.command("reindex", help="Force reparse of sessions, bypassing the mtime/parser-version self-heal check.")
+def reindex_cmd(
+    tool: Optional[str] = typer.Option(None, "--tool", "-t", help="Only reindex sessions from this tool"),
+    session_id: Optional[str] = typer.Option(None, "--session", help="Only reindex this session ID"),
+):
+    from hades.commands.reindex import cmd_reindex
+    cmd_reindex(tool=tool, session_id=session_id)
+
+
+@app.command("serve", help="Run a localhost dashboard showing the token/cost breakdown by tool and project.")
+def serve_cmd(
+    port: Optional[int] = typer.Option(None, "--port", "-p", help="Port to listen on (default: config serve_port)"),
+):
+    from hades.commands.serve import cmd_serve
+    cmd_serve(port=port)
+
+
 @app.command("setup", help="Show which sources are detected on this machine and enabled for scanning.")
 def setup_cmd():
     from hades.commands.tools import cmd_setup

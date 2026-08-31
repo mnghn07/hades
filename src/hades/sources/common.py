@@ -64,6 +64,22 @@ def extract_token_count(assistant_msgs: list[dict]) -> int:
     return total
 
 
+def extract_token_breakdown(assistant_msgs: list[dict]) -> dict[str, int]:
+    """Sum each of the four token categories across every assistant turn's
+    usage block. Shared by any source whose transcript format nests a
+    Claude-shaped message.usage block (Claude Code and Cowork both do)."""
+    totals = {"input": 0, "output": 0, "cache_write": 0, "cache_read": 0}
+    for m in assistant_msgs:
+        usage = m.get("message", {}).get("usage")
+        if not isinstance(usage, dict):
+            continue
+        totals["input"] += usage.get("input_tokens", 0) or 0
+        totals["output"] += usage.get("output_tokens", 0) or 0
+        totals["cache_write"] += usage.get("cache_creation_input_tokens", 0) or 0
+        totals["cache_read"] += usage.get("cache_read_input_tokens", 0) or 0
+    return totals
+
+
 def extract_cost(assistant_msgs: list[dict]) -> float:
     """Sum per-turn USD cost, priced by that turn's own model."""
     total = 0.0

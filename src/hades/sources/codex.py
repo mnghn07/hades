@@ -11,6 +11,8 @@ class CodexSource(BaseSource):
     name = "codex"
     env_var = "HADES_CODEX_PATH"
     default_paths = [Path("~/.codex/sessions")]
+    # v2: backfills the four token-category columns (input/output/cache-write/cache-read).
+    PARSER_VERSION = 2
 
     @classmethod
     def list_files(cls) -> list[Path]:
@@ -28,6 +30,7 @@ class CodexSource(BaseSource):
         last_active_at = max(timestamps) if timestamps else started_at
 
         turns = [r for r in records if _turn_role(r) in ("user", "assistant")]
+        breakdown = _extract_token_breakdown(records)
 
         return Session(
             id=f"codex:{path.stem}",
@@ -41,6 +44,10 @@ class CodexSource(BaseSource):
             title=_extract_title(turns),
             token_count=_extract_token_count(records),
             cost_usd=_extract_cost(records),
+            input_tokens=breakdown["input"],
+            output_tokens=breakdown["output"],
+            cache_write_tokens=breakdown["cache_write"],
+            cache_read_tokens=breakdown["cache_read"],
         )
 
     @classmethod
@@ -121,6 +128,20 @@ def _last_token_usage(records: list[dict]) -> dict | None:
 def _extract_token_count(records: list[dict]) -> int:
     usage = _last_token_usage(records)
     return usage.get("total_tokens", 0) or 0 if usage else 0
+
+
+def _extract_token_breakdown(records: list[dict]) -> dict[str, int]:
+    """The cumulative usage dict already carries all four categories — no
+    summing needed, same as _extract_cost."""
+    usage = _last_token_usage(records)
+    if not usage:
+        return {"input": 0, "output": 0, "cache_write": 0, "cache_read": 0}
+    return {
+        "input": usage.get("input_tokens", 0) or 0,
+        "output": usage.get("output_tokens", 0) or 0,
+        "cache_write": usage.get("cache_write_input_tokens", 0) or 0,
+        "cache_read": usage.get("cached_input_tokens", 0) or 0,
+    }
 
 
 def _extract_model(records: list[dict]) -> str | None:

@@ -12,6 +12,7 @@ CONFIG_PATH = Path(user_data_dir("hades")) / "config.json"
 
 DEFAULTS = {
     "wait_threshold_minutes": 3,
+    "serve_port": 8080,
 }
 
 # Which sources get scanned/indexed. Only Claude is on out of the box;
