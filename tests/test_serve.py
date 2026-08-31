@@ -2,13 +2,13 @@ import json
 import threading
 import urllib.error
 import urllib.request
+from http.server import ThreadingHTTPServer
 
 import pytest
 
 from hades.commands.serve import _Handler
 from hades.db import get_db
 from hades.indexer import refresh_index
-from http.server import ThreadingHTTPServer
 
 
 def _point_at_claude_root(monkeypatch, claude_session_file):
@@ -18,7 +18,7 @@ def _point_at_claude_root(monkeypatch, claude_session_file):
 
 
 @pytest.fixture
-def running_server(db_path, claude_session_file, monkeypatch):
+def running_server(db_path, claude_session_file, monkeypatch):  # pylint: disable=unused-argument
     _point_at_claude_root(monkeypatch, claude_session_file)
     db = get_db()
     refresh_index(db)
