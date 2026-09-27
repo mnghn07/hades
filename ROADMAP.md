@@ -27,6 +27,7 @@ Attention list becomes actionable instead of read-only. (Dropped `hades resume` 
 
 - ~~**Linux notifications**~~ — done: `notify-send` alongside `osascript` in `watch.py`, silently no-ops if the binary is missing.
 - ~~**Interactive `watch`**~~ — done: `j`/`k` moves a highlighted row cursor, `d` archives the highlighted session in place, footer legend always visible. cbreak-mode stdin reading via `termios`/`tty`/`select` (POSIX only — falls back to view-only when stdin isn't a real tty or on Windows). Archive logic factored out of `cmd_archive` into `archive_session_by_id` so both the CLI command and the watch keybinding share it.
+- ~~**Archive menu in `watch`**~~ — done (2026-09-28): `d` no longer archives the highlighted row immediately. It opens a menu of the watched sessions (`↑`/`↓` or `j`/`k` move, Enter selects, Esc cancels), then asks for `y`/`n` confirmation before archiving. The refresh countdown pauses while the menu is open so the list doesn't reshuffle under the selection.
 - ~~**Attention threshold config**~~ — done: `hades config get/set/list` reads/writes a small typed-default registry (`hades/config.py`) persisted to `config.json` next to the index DB; `HADES_WAIT_THRESHOLD_MINUTES` still works as a one-off env override on top of it. Backs `attention`, `stats`, and `watch` via `waiting.wait_threshold_minutes()`. (Only affects the mtime-heuristic path — hook-reported `waiting_since` sessions are already known-waiting regardless of threshold.) Adding a future setting is one line in `config.DEFAULTS`.
 
 ## v2 — Widen the funnel

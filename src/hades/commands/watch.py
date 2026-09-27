@@ -1,9 +1,11 @@
+import os
 import time
 import subprocess
 import platform
 import select
 import sys
 from contextlib import contextmanager
+from dataclasses import dataclass
 from datetime import datetime, timezone
 
 import typer
@@ -32,7 +34,23 @@ except ImportError:  # Windows has neither module
 
 REFRESH_SECONDS = 30
 MIN_SPINNER_SECONDS = 0.5
-LEGEND = "[dim]j/k move · d archive · Ctrl+C exit[/dim]"
+LEGENDS = {
+    "table": "[dim]d archive · Ctrl+C exit[/dim]",
+    "menu": "[dim]↑/↓ or j/k move · Enter select · Esc cancel[/dim]",
+    "confirm": "[dim]y archive · n back[/dim]",
+}
+ESC = "\x1b"
+ENTER = ("\n", "\r")
+# Arrow keys arrive as one escape sequence (CSI or SS3 form); map them onto j/k.
+ARROWS = {"\x1b[A": "k", "\x1b[B": "j", "\x1bOA": "k", "\x1bOB": "j"}
+
+
+@dataclass
+class _Ui:
+    """Archive flow state: table -> menu (pick a session) -> confirm -> archive."""
+    mode: str = "table"
+    cursor: int = 0
+    target: dict | None = None
 
 
 def cmd_watch(
@@ -45,7 +63,7 @@ def cmd_watch(
     # doesn't fire a notification storm for everything already waiting.
     already_waiting = _fetch_sessions(db)
     notified: set[str] = {s["id"] for s in already_waiting if s["_is_waiting"]}
-    cursor = 0
+    ui = _Ui()
 
     console.print("[bold]hades watch[/bold] · refreshing every 30s · [dim]Ctrl+C to exit[/dim]\n")
 
@@ -66,36 +84,69 @@ def cmd_watch(
                     if s["_is_waiting"]:
                         notified.add(s["id"])
 
-                cursor = min(cursor, len(sessions) - 1) if sessions else 0
+                ui.cursor = min(ui.cursor, len(sessions) - 1) if sessions else 0
                 footer_spinner = Spinner("dots")
                 tick_started = time.monotonic()
                 remaining = REFRESH_SECONDS
                 while remaining > 0:
                     footer_spinner.update(text=f"[dim]next check in {remaining}s[/dim]")
-                    live.update(Group(_render_table(sessions, cursor), footer_spinner, Text.from_markup(LEGEND)))
+                    live.update(_render_view(sessions, ui, footer_spinner))
 
-                    cursor = _handle_key(_read_key(0.1), db, sessions, cursor)
+                    _handle_key(_read_key(0.1), db, sessions, ui)
 
-                    if time.monotonic() - tick_started >= 1:
+                    # Countdown pauses while the archive menu is open so a refresh
+                    # never reshuffles the list under the user's selection.
+                    if ui.mode != "table":
+                        tick_started = time.monotonic()
+                    elif time.monotonic() - tick_started >= 1:
                         tick_started = time.monotonic()
                         remaining -= 1
     except KeyboardInterrupt:
         console.print("\n[dim]Stopped.[/dim]")
 
 
-def _handle_key(key: str | None, db, sessions: list[dict], cursor: int) -> int:
-    if key == "j" and sessions:
-        return min(cursor + 1, len(sessions) - 1)
-    if key == "k" and sessions:
-        return max(cursor - 1, 0)
-    if key == "d" and sessions:
-        try:
-            archive_session_by_id(db, sessions[cursor]["id"])
-        except (ValueError, FileNotFoundError):
-            return cursor
-        sessions.pop(cursor)
-        return min(cursor, len(sessions) - 1) if sessions else 0
-    return cursor
+def _handle_key(key: str | None, db, sessions: list[dict], ui: _Ui) -> None:
+    if ui.mode == "table":
+        if key == "d" and sessions:
+            ui.mode, ui.cursor = "menu", 0
+    elif ui.mode == "menu":
+        if key == "j" and sessions:
+            ui.cursor = min(ui.cursor + 1, len(sessions) - 1)
+        elif key == "k":
+            ui.cursor = max(ui.cursor - 1, 0)
+        elif key in ENTER and sessions:
+            ui.mode, ui.target = "confirm", sessions[ui.cursor]
+        elif key in (ESC, "q"):
+            ui.mode = "table"
+    elif ui.mode == "confirm":
+        if key == "y":
+            _archive(db, sessions, ui.target)
+            ui.mode, ui.target = "table", None
+            ui.cursor = min(ui.cursor, len(sessions) - 1) if sessions else 0
+        elif key in ("n", ESC):
+            ui.mode, ui.target = "menu", None
+
+
+def _archive(db, sessions: list[dict], target: dict) -> None:
+    try:
+        archive_session_by_id(db, target["id"])
+    except (ValueError, FileNotFoundError):
+        return
+    sessions[:] = [s for s in sessions if s["id"] != target["id"]]
+
+
+def _render_view(sessions: list[dict], ui: _Ui, footer) -> Group:
+    legend = Text.from_markup(LEGENDS[ui.mode])
+    if ui.mode == "table":
+        return Group(_render_table(sessions, cursor=None), footer, legend)
+    if ui.mode == "menu":
+        return Group(_render_table(sessions, ui.cursor, title="select a session to archive"), legend)
+    t = ui.target
+    prompt = Text.from_markup(
+        f"[bold]Archive[/bold] {escape(t['tool'])} · {escape(_project_name(t))}"
+        f" · [dim]{escape((t['title'] or '')[:36])}[/dim]?"
+    )
+    return Group(_render_table(sessions, ui.cursor), prompt, legend)
 
 
 @contextmanager
@@ -122,7 +173,18 @@ def _read_key(timeout: float) -> str | None:
         time.sleep(timeout)
         return None
     ready, _, _ = select.select([sys.stdin], [], [], timeout)
-    return sys.stdin.read(1) if ready else None
+    if not ready:
+        return None
+    # os.read, not sys.stdin.read(1): the text wrapper would buffer the rest of an
+    # escape sequence where select() can't see it, splitting arrow keys apart.
+    data = os.read(sys.stdin.fileno(), 8).decode(errors="ignore")
+    return _decode_key(data)
+
+
+def _decode_key(data: str) -> str | None:
+    if data.startswith(ESC) and len(data) > 1:
+        return ARROWS.get(data[:3])  # other sequences (left/right, F-keys) ignored
+    return data[:1] or None
 
 
 def _fetch_sessions(db, refresh: bool = False) -> list[dict]:
@@ -134,10 +196,10 @@ def _fetch_sessions(db, refresh: bool = False) -> list[dict]:
     return recent_human_sessions(db, datetime.now(timezone.utc))
 
 
-def _render_table(sessions: list[dict], cursor: int) -> Table:
+def _render_table(sessions: list[dict], cursor: int | None, title: str | None = None) -> Table:
     table = Table(
         show_header=True, header_style="bold", box=box.ROUNDED,
-        title=f"[dim]{datetime.now(timezone.utc).strftime('%H:%M:%S')}[/dim]",
+        title=f"[dim]{title or datetime.now(timezone.utc).strftime('%H:%M:%S')}[/dim]",
     )
     table.add_column("TOOL", style="cyan", width=10)
     table.add_column("PROJECT", style="white", max_width=28)
@@ -147,7 +209,7 @@ def _render_table(sessions: list[dict], cursor: int) -> Table:
 
     for idx, s in enumerate(sessions):
         mins = s["_waiting_minutes"]
-        project = s["project_path"].split("/")[-1] or s["project_path"]
+        project = _project_name(s)
         wait_str = f"[bold yellow]{mins}m[/bold yellow]" if s["_is_waiting"] else f"[dim]{mins}m[/dim]"
         status = "[green]● running[/green]" if s["status"] == "running" else "[dim]○ idle[/dim]"
 
@@ -159,8 +221,12 @@ def _render_table(sessions: list[dict], cursor: int) -> Table:
     return table
 
 
+def _project_name(session: dict) -> str:
+    return session["project_path"].split("/")[-1] or session["project_path"]
+
+
 def _send_notification(session: dict) -> None:
-    project = session["project_path"].split("/")[-1] or session["project_path"]
+    project = _project_name(session)
     system = platform.system()
     if system == "Darwin":
         title = _osa_quote(f"hades · {session['tool']} waiting")
